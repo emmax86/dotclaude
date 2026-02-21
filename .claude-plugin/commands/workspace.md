@@ -10,6 +10,7 @@ dotclaude ws list [--porcelain]
 dotclaude ws remove <name> [--force]
 dotclaude ws status [workspace]
 dotclaude ws path [workspace]
+dotclaude ws sync [workspace]
 ```
 
 ## Subcommands
@@ -56,6 +57,17 @@ Print the filesystem path of a workspace.
 ```
 dotclaude ws path myproject
 dotclaude ws path --porcelain   # plain path only
+```
+
+### sync
+
+Repair a workspace's filesystem state to match `workspace.json`. Recreates any missing or dangling `repos/<name>` symlinks, `trees/<repo>/` directories, and default-branch symlinks. Regenerates the `.code-workspace` file. Safe to run repeatedly — idempotent.
+
+Returns per-repo status: `ok` (nothing needed), `repaired` (something was fixed), or `dangling` (source path is no longer a git repo).
+
+```
+dotclaude ws sync myproject
+dotclaude ws sync          # uses current workspace from context
 ```
 
 ## Notes

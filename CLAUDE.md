@@ -20,9 +20,9 @@ bun run format:check              # check formatting
 
 - **Workspace** — a named directory under `DOTCLAUDE_ROOT` (default: `~/dotclaude-workspaces`). Contains a `workspace.json` config, a `.claude/` directory, and subdirectories per repo.
 - **Repo** — a git repository registered in a workspace. Stored as a symlink at `repos/{name} → <absolute-path>`. A workspace-local tree entry is also created at `{workspace}/trees/{name} → ../../repos/{name}`.
-- **Worktree** — a git worktree tracked under `{workspace}/{repo}/{slug}/`. Three kinds:
-  - `pool` — symlink `../../worktrees/{repo}/{slug}` pointing into a shared pool at `worktrees/{repo}/{slug}`. Multiple workspaces can share the same pool entry. Tracked in `worktrees.json`.
-  - `linked` — symlink `../trees/{repo}` (the default-branch entry created automatically when a repo is added).
+- **Worktree** — a git worktree tracked under `{workspace}/trees/{repo}/{slug}/`. Three kinds:
+  - `pool` — symlink into the shared pool at `worktrees/{repo}/{slug}`. Multiple workspaces can share the same pool entry. Tracked in `worktrees.json`.
+  - `linked` — symlink to `repos/{repo}` (the default-branch entry created automatically when a repo is added).
   - `legacy` — real directory (old-style, pre-pool).
 
 The `classifyWorktreeEntry()` function in `src/lib/worktree-utils.ts` distinguishes these by reading the symlink target prefix.
@@ -42,6 +42,10 @@ All filesystem paths are centralised through the `Paths` object created by `crea
 ### CLI
 
 `src/cli.ts` handles flat arg parsing (no external parser). The top-level command is `dotclaude ws <subcommand>` (also aliased as `dotclaude workspaces`). `--porcelain` switches output from JSON to tab-separated plaintext.
+
+Subcommands: `add`, `list`, `remove`, `repo`, `worktree`, `status`, `path`, `sync`.
+
+`ws sync [workspace]` — idempotent repair command. Reads `workspace.json` and recreates any missing or dangling `repos/<name>` symlinks, `trees/<repo>/` directories, and default-branch symlinks. Returns per-repo `status` of `ok`, `repaired`, or `dangling` (source path no longer a git repo).
 
 ### Plugin
 
