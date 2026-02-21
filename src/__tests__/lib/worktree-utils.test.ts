@@ -63,6 +63,16 @@ describe("classifyWorktreeEntry", () => {
     symlinkSync("/some/absolute/path", wtPath);
     expect(classifyWorktreeEntry(wtPath, paths)).toBe("linked");
   });
+
+  it("returns 'pool' for dangling pool symlink", () => {
+    addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
+    const wtPath = paths.worktreeDir("myws", "myrepo", "feature-x");
+    // Delete the pool entry to make the workspace symlink dangle
+    rmSync(paths.worktreePoolEntry("myrepo", "feature-x"), { recursive: true, force: true });
+    // classifyWorktreeEntry uses lstatSync (inspects symlink itself, not target)
+    // and readlinkSync (reads raw target string), so it still classifies as "pool"
+    expect(classifyWorktreeEntry(wtPath, paths)).toBe("pool");
+  });
 });
 
 describe("resolveRepoPath", () => {

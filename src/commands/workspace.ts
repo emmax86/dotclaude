@@ -22,6 +22,7 @@ import {
   resolveRepoPath,
   removePoolWorktreeReference,
 } from "../lib/worktree-utils";
+import { pruneWorktrees, type PruneEntry } from "./worktree";
 
 const RESERVED_NAMES = new Set(["repos", "worktrees"]);
 
@@ -180,6 +181,7 @@ export interface SyncRepoResult {
 
 export interface SyncResult {
   repos: SyncRepoResult[];
+  pruned: PruneEntry[];
 }
 
 export function syncWorkspace(name: string, paths: Paths, env?: GitEnv): Result<SyncResult> {
@@ -268,5 +270,8 @@ export function syncWorkspace(name: string, paths: Paths, env?: GitEnv): Result<
   const claudeResult = generateClaudeFiles(name, paths, env);
   if (!claudeResult.ok) return claudeResult;
 
-  return ok({ repos: repoResults });
+  const pruneResult = pruneWorktrees(name, paths, env);
+  const pruned = pruneResult.ok ? pruneResult.value.pruned : [];
+
+  return ok({ repos: repoResults, pruned });
 }

@@ -63,6 +63,8 @@ dotclaude ws path --porcelain   # plain path only
 
 Repair a workspace's filesystem state to match `workspace.json`. Recreates any missing or dangling `repos/<name>` symlinks, `trees/<repo>/` directories, and default-branch symlinks. Regenerates the `.code-workspace` file. Safe to run repeatedly — idempotent.
 
+Also prunes dangling pool worktree symlinks (equivalent to running `ws worktree prune`). The output includes a `pruned` array alongside the per-repo `repos` array.
+
 Returns per-repo status: `ok` (nothing needed), `repaired` (something was fixed), or `dangling` (source path is no longer a git repo).
 
 ```

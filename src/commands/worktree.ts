@@ -147,6 +147,60 @@ export function listWorktrees(
   return ok(worktrees);
 }
 
+export interface PruneEntry {
+  repo: string;
+  slug: string;
+}
+
+export interface PruneResult {
+  pruned: PruneEntry[];
+}
+
+export function pruneWorktrees(workspace: string, paths: Paths, env?: GitEnv): Result<PruneResult> {
+  const configResult = readConfig(paths.workspaceConfig(workspace));
+  if (!configResult.ok) {
+    if (configResult.code === "CONFIG_NOT_FOUND")
+      return err(`Workspace "${workspace}" not found`, "WORKSPACE_NOT_FOUND");
+    return configResult;
+  }
+
+  const pruned: PruneEntry[] = [];
+
+  for (const repo of configResult.value.repos) {
+    const repoTreeDir = paths.repoDir(workspace, repo.name);
+    if (!existsSync(repoTreeDir)) continue;
+
+    let entries: string[];
+    try {
+      entries = readdirSync(repoTreeDir);
+    } catch {
+      continue;
+    }
+
+    for (const slug of entries) {
+      const wtPath = paths.worktreeDir(workspace, repo.name, slug);
+      const kind = classifyWorktreeEntry(wtPath, paths);
+      if (kind !== "pool") continue;
+      if (existsSync(wtPath)) continue; // target exists — not dangling
+
+      // Dangling pool symlink — remove symlink first, then clean pool ref.
+      // Stale pool ref is harmless; orphaned symlink may escape future prune runs.
+      try {
+        rmSync(wtPath, { force: true });
+      } catch {
+        continue; // can't remove symlink (EPERM etc.) — skip this entry
+      }
+
+      removePoolWorktreeReference(workspace, repo.name, slug, { force: true }, paths, env);
+      // Pool ref cleanup is best-effort — stale entries are harmless
+
+      pruned.push({ repo: repo.name, slug });
+    }
+  }
+
+  return ok({ pruned });
+}
+
 export function removeWorktree(
   workspace: string,
   repo: string,
