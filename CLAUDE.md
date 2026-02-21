@@ -63,6 +63,22 @@ The shared test helpers in `src/__tests__/helpers.ts` provide:
 
 All git operations in tests pass `GIT_CONFIG_NOSYSTEM=1` to avoid triggering GPG signing.
 
+## TDD process
+
+When implementing features, follow strict test-driven development:
+
+1. **Red**: Write all test cases first. Tests must fail. Run `bun test` to confirm failures.
+2. **Green**: Implement the minimum code to make tests pass. Run `bun test` after each change.
+3. **Refactor**: Clean up while keeping tests green.
+
+Rules:
+
+- Never write implementation before a failing test exists for the behavior.
+- Test the `Result<T>` return value, not side effects alone — check both `result.ok` and the value/error.
+- Use `createTestGitRepo()` and real filesystem state, not mocks.
+- Error codes are SCREAMING_SNAKE_CASE. Add new codes to the error catalog in this file.
+- One test = one behavior. Name tests as "does X when Y" or "returns ERROR_CODE when Y".
+
 ## Commits
 
 Commit messages follow Conventional Commits (`feat:`, `fix:`, `chore:`, etc.) — enforced by commitlint.

@@ -4,6 +4,7 @@ import { type Paths } from "../constants";
 import { type Result, ok, err, type RepoEntry } from "../types";
 import { readConfig, addRepoToConfig, removeRepoFromConfig } from "../lib/config";
 import { generateVSCodeWorkspace } from "../lib/vscode";
+import { generateClaudeFiles } from "../lib/claude";
 import { isGitRepo, getDefaultBranch, removeWorktree, type GitEnv } from "../lib/git";
 import {
   classifyWorktreeEntry,
@@ -113,6 +114,9 @@ export function addRepo(
   const vscodeResult = generateVSCodeWorkspace(workspace, paths);
   if (!vscodeResult.ok) return vscodeResult;
 
+  const claudeResult = generateClaudeFiles(workspace, paths, env);
+  if (!claudeResult.ok) return claudeResult;
+
   return ok({ name, path: absPath, status: "ok" });
 }
 
@@ -220,6 +224,9 @@ export function removeRepo(
 
   const vscodeResult = generateVSCodeWorkspace(workspace, paths);
   if (!vscodeResult.ok) return vscodeResult;
+
+  const claudeResult = generateClaudeFiles(workspace, paths, env);
+  if (!claudeResult.ok) return claudeResult;
 
   return ok(undefined);
 }

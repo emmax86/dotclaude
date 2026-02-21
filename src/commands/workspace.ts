@@ -14,6 +14,7 @@ import { type Paths } from "../constants";
 import { type Result, ok, err, type WorkspaceConfig } from "../types";
 import { writeConfig, readConfig } from "../lib/config";
 import { generateVSCodeWorkspace } from "../lib/vscode";
+import { generateClaudeFiles } from "../lib/claude";
 import { isGitRepo, getDefaultBranch, removeWorktree, type GitEnv } from "../lib/git";
 import { toSlug } from "../lib/slug";
 import {
@@ -60,6 +61,9 @@ export function addWorkspace(name: string, paths: Paths): Result<WorkspaceInfo> 
 
   const vscodeResult = generateVSCodeWorkspace(name, paths);
   if (!vscodeResult.ok) return vscodeResult;
+
+  const claudeResult = generateClaudeFiles(name, paths);
+  if (!claudeResult.ok) return claudeResult;
 
   return ok({ name, path: wsPath });
 }
@@ -260,6 +264,9 @@ export function syncWorkspace(name: string, paths: Paths, env?: GitEnv): Result<
 
   const vscodeResult = generateVSCodeWorkspace(name, paths);
   if (!vscodeResult.ok) return vscodeResult;
+
+  const claudeResult = generateClaudeFiles(name, paths, env);
+  if (!claudeResult.ok) return claudeResult;
 
   return ok({ repos: repoResults });
 }
