@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { join } from "node:path";
-import { existsSync, lstatSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, rmSync, writeFileSync } from "node:fs";
 import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "../helpers";
 import { createPaths } from "../../constants";
 import { addWorkspace } from "../../commands/workspace";
@@ -125,6 +125,34 @@ describe("worktree commands", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.code).toBe("CANNOT_REMOVE_DEFAULT_BRANCH");
+    }
+  });
+
+  it("remove refuses default branch symlink even when dangling", () => {
+    // Break the two-hop chain by removing the workspace trees entry
+    rmSync(paths.workspaceTreeEntry("myws", "myrepo"));
+    const result = removeWorktree("myws", "myrepo", "main", {}, paths, GIT_ENV);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("CANNOT_REMOVE_DEFAULT_BRANCH");
+    }
+  });
+
+  it("list includes dangling default branch symlink as linked type", () => {
+    // Break the two-hop chain — main symlink is now dangling
+    const treeEntry = paths.workspaceTreeEntry("myws", "myrepo");
+    let removed = false;
+    try {
+      lstatSync(treeEntry);
+      rmSync(treeEntry);
+      removed = true;
+    } catch { /* already gone from previous test */ }
+
+    const result = listWorktrees("myws", "myrepo", paths);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const main = result.value.find((w) => w.slug === "main");
+      expect(main?.type).toBe("linked");
     }
   });
 });

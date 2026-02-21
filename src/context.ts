@@ -50,7 +50,7 @@ export function inferContext(cwd: string, workspacesRoot: string): Context {
   };
 
   // Compute relative path from workspace to cwd
-  const relToCwd = relative(workspaceDir, cwd);
+  const relToCwd = relative(workspaceDir, realCwd);
   if (!relToCwd) {
     // At workspace root
     return context;

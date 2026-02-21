@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "bun:test";
 import { join } from "node:path";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, symlinkSync } from "node:fs";
 import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "./helpers";
 import { createPaths } from "../constants";
 import { addWorkspace } from "../commands/workspace";
@@ -58,6 +58,37 @@ describe("context inference", () => {
   it("cwd at workspaces root → returns nothing", () => {
     const ctx = inferContext(wsRoot, wsRoot);
     expect(ctx.workspace).toBeUndefined();
+  });
+
+  it("cwd inside {workspace}/trees/ → workspace only", () => {
+    // trees/ dir is created by addRepo
+    const treesDir = join(paths.workspace("myws"), "trees");
+    const ctx = inferContext(treesDir, wsRoot);
+    expect(ctx.workspace).toBe("myws");
+    expect(ctx.repo).toBeUndefined();
+  });
+
+  it("cwd inside {workspace}/trees/{repo}/ → returns nothing (symlink resolves outside root)", () => {
+    // trees/myrepo is a symlink. inferContext calls realpathSync(cwd) which follows it
+    // all the way to the actual repo path, which is outside wsRoot.
+    const treesRepoDir = join(paths.workspace("myws"), "trees", "myrepo");
+    const ctx = inferContext(treesRepoDir, wsRoot);
+    expect(ctx.workspace).toBeUndefined();
+  });
+
+  it("infers correctly when cwd contains unresolved symlink prefix (macOS /tmp regression)", () => {
+    // Simulate macOS /tmp -> /private/tmp: a symlink alias that points to tempDir.
+    // cwd passed in uses the alias path; wsRoot is the real path.
+    // Before the fix, relative(workspaceDir, cwd) used the unresolved cwd and
+    // produced a wrong relative path, causing repo/worktree to come back undefined.
+    const alias = join(tempDir, "alias");
+    symlinkSync(tempDir, alias);
+
+    const cwdViaAlias = join(alias, "workspaces", "myws", "myrepo", "feature-ctx");
+    const ctx = inferContext(cwdViaAlias, wsRoot);
+    expect(ctx.workspace).toBe("myws");
+    expect(ctx.repo).toBe("myrepo");
+    expect(ctx.worktree).toBe("feature-ctx");
   });
 
   it("validates repo segment against workspace.json repos list", () => {

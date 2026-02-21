@@ -6,7 +6,7 @@ import { addWorkspace, listWorkspaces } from "../../commands/workspace";
 import { addRepo, listRepos } from "../../commands/repo";
 import { addWorktree, listWorktrees } from "../../commands/worktree";
 import { getStatus } from "../../commands/status";
-import { existsSync, lstatSync } from "node:fs";
+import { existsSync, lstatSync, realpathSync } from "node:fs";
 
 describe("lifecycle integration", () => {
   let tempDir: string;
@@ -48,8 +48,12 @@ describe("lifecycle integration", () => {
     expect(existsSync(paths.repoEntry("myrepo"))).toBe(true);
 
     // default branch symlink exists in workspace
-    const stat = lstatSync(join(paths.repoDir("myws", "myrepo"), "main"));
+    const defaultBranchPath = join(paths.repoDir("myws", "myrepo"), "main");
+    const stat = lstatSync(defaultBranchPath);
     expect(stat.isSymbolicLink()).toBe(true);
+
+    // full chain: {workspace}/myrepo/main -> ../trees/myrepo -> ../../repos/myrepo -> actual path
+    expect(realpathSync(defaultBranchPath)).toBe(realpathSync(repoPath));
   });
 
   it("adds a worktree", () => {

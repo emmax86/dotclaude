@@ -34,6 +34,10 @@ export function addRepo(
 
   const name = nameOverride ?? basename(absPath);
 
+  if (name === "trees") {
+    return err(`"trees" is a reserved name and cannot be used as a repo name`, "RESERVED_NAME");
+  }
+
   // Check if repos/{name} exists pointing to a different path
   const treePath = paths.repoEntry(name);
   if (existsSync(treePath)) {
@@ -67,12 +71,21 @@ export function addRepo(
   // Create {workspace}/{repo-name}/ directory
   const repoDirPath = paths.repoDir(workspace, name);
   let repoDirCreated = false;
+  let wsTreeCreated = false;
   let defaultBranchSlugPath: string | undefined;
 
   try {
     if (!existsSync(repoDirPath)) {
       mkdirSync(repoDirPath, { recursive: true });
       repoDirCreated = true;
+    }
+
+    // Create {workspace}/trees/ and workspace-local {workspace}/trees/{name} -> ../../repos/{name}
+    mkdirSync(paths.workspaceTrees(workspace), { recursive: true });
+    const wsTreeEntry = paths.workspaceTreeEntry(workspace, name);
+    if (!existsSync(wsTreeEntry)) {
+      symlinkSync(`../../repos/${name}`, wsTreeEntry);
+      wsTreeCreated = true;
     }
 
     // Detect default branch and create symlink
@@ -85,10 +98,8 @@ export function addRepo(
     defaultBranchSlugPath = paths.worktreeDir(workspace, name, slug);
 
     if (!existsSync(defaultBranchSlugPath)) {
-      // Symlink: {workspace}/{repo}/{slug} -> ../../repos/{repo}
-      // Relative path from worktreeDir to repoEntry
-      const relTarget = `../../repos/${name}`;
-      symlinkSync(relTarget, defaultBranchSlugPath);
+      // Symlink: {workspace}/{repo}/{slug} -> ../trees/{repo}
+      symlinkSync(`../trees/${name}`, defaultBranchSlugPath);
     }
 
     // Add to workspace.json
@@ -103,6 +114,13 @@ export function addRepo(
     // Clean up repo dir if we created it (don't touch global tree)
     if (repoDirCreated && existsSync(repoDirPath)) {
       rmSync(repoDirPath, { recursive: true, force: true });
+    }
+    if (wsTreeCreated) {
+      const wsTreeEntry = paths.workspaceTreeEntry(workspace, name);
+      try {
+        lstatSync(wsTreeEntry);
+        rmSync(wsTreeEntry);
+      } catch { /* already gone */ }
     }
     return err(String(e), "REPO_ADD_ERROR");
   }
@@ -186,6 +204,13 @@ export function removeRepo(
 
     rmSync(repoDir, { recursive: true, force: true });
   }
+
+  // Remove workspace-local tree entry
+  const wsTreeEntry = paths.workspaceTreeEntry(workspace, name);
+  try {
+    lstatSync(wsTreeEntry);
+    rmSync(wsTreeEntry);
+  } catch { /* not present, skip */ }
 
   // Remove from workspace.json (global repo entry stays)
   const removeResult = removeRepoFromConfig(paths.workspaceConfig(workspace), name);

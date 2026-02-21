@@ -39,13 +39,14 @@ export function addWorktree(
   const slug = toSlug(branch);
   const worktreePath = paths.worktreeDir(workspace, repo, slug);
 
-  // Check for slug collision
-  if (existsSync(worktreePath)) {
+  // Check for slug collision (use lstatSync so dangling symlinks are also detected)
+  try {
+    lstatSync(worktreePath);
     return err(
       `Target directory already exists: "${worktreePath}". Branch slug "${slug}" collides with an existing entry.`,
       "SLUG_COLLISION"
     );
-  }
+  } catch { /* does not exist — proceed */ }
 
   const result = gitAddWorktree(
     realRepoPath,
@@ -106,12 +107,15 @@ export function removeWorktree(
 ): Result<void> {
   const wtPath = paths.worktreeDir(workspace, repo, slug);
 
-  if (!existsSync(wtPath)) {
+  // Use lstatSync so dangling symlinks are visible (existsSync follows and returns false)
+  let lstat: ReturnType<typeof lstatSync>;
+  try {
+    lstat = lstatSync(wtPath);
+  } catch {
     return err(`Worktree "${slug}" not found in repo "${repo}"`, "WORKTREE_NOT_FOUND");
   }
 
   // Refuse to remove default branch (symlink)
-  const lstat = lstatSync(wtPath);
   if (lstat.isSymbolicLink()) {
     return err(
       `Cannot remove default branch symlink "${slug}". Remove the repo instead.`,

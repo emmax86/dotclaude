@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { join } from "node:path";
-import { existsSync, lstatSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readlinkSync, rmSync } from "node:fs";
 import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "../helpers";
 import { createPaths } from "../../constants";
 import { addWorkspace } from "../../commands/workspace";
@@ -31,10 +31,15 @@ describe("repo commands", () => {
     expect(existsSync(paths.repoEntry("myrepo"))).toBe(true);
     expect(lstatSync(paths.repoEntry("myrepo")).isSymbolicLink()).toBe(true);
 
-    // {workspace}/{repo}/main symlink exists
+    // {workspace}/trees/myrepo symlink points to ../../repos/myrepo
+    const wsTreeEntry = paths.workspaceTreeEntry("myws", "myrepo");
+    expect(lstatSync(wsTreeEntry).isSymbolicLink()).toBe(true);
+    expect(readlinkSync(wsTreeEntry)).toBe("../../repos/myrepo");
+
+    // {workspace}/{repo}/main symlink points to ../trees/myrepo
     const defaultSlugPath = join(paths.repoDir("myws", "myrepo"), "main");
-    expect(existsSync(defaultSlugPath)).toBe(true);
     expect(lstatSync(defaultSlugPath).isSymbolicLink()).toBe(true);
+    expect(readlinkSync(defaultSlugPath)).toBe("../trees/myrepo");
   });
 
   it("add then list includes repo", () => {
@@ -61,6 +66,9 @@ describe("repo commands", () => {
       expect(result.value.name).toBe("customname");
     }
     expect(existsSync(paths.repoEntry("customname"))).toBe(true);
+    // workspace tree entry also uses the override name
+    expect(lstatSync(paths.workspaceTreeEntry("myws", "customname")).isSymbolicLink()).toBe(true);
+    expect(readlinkSync(paths.workspaceTreeEntry("myws", "customname"))).toBe("../../repos/customname");
   });
 
   it("add fails if path is not a git repo", () => {
@@ -83,11 +91,23 @@ describe("repo commands", () => {
     const treeStat = lstatSync(paths.repoEntry("myrepo"));
     expect(treeStat.isSymbolicLink()).toBe(true);
 
+    // Each workspace has its own trees/myrepo entry
+    expect(lstatSync(paths.workspaceTreeEntry("myws", "myrepo")).isSymbolicLink()).toBe(true);
+    expect(lstatSync(paths.workspaceTreeEntry("otherws", "myrepo")).isSymbolicLink()).toBe(true);
+
     // Both workspaces have their own default branch symlinks
     const ws1Link = join(paths.repoDir("myws", "myrepo"), "main");
     const ws2Link = join(paths.repoDir("otherws", "myrepo"), "main");
     expect(lstatSync(ws1Link).isSymbolicLink()).toBe(true);
     expect(lstatSync(ws2Link).isSymbolicLink()).toBe(true);
+  });
+
+  it("add rejects reserved repo name 'trees'", () => {
+    const result = addRepo("myws", repoPath, "trees", paths, GIT_ENV);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("RESERVED_NAME");
+    }
   });
 
   it("add errors if repos/{name} already points to a different path", () => {
@@ -98,6 +118,19 @@ describe("repo commands", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.code).toBe("TREE_NAME_CONFLICT");
+    }
+  });
+
+  it("add is idempotent for same repo and workspace", () => {
+    addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    const result = addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    expect(result.ok).toBe(true);
+
+    // Still only one entry in config
+    const list = listRepos("myws", paths);
+    expect(list.ok).toBe(true);
+    if (list.ok) {
+      expect(list.value.filter((r) => r.name === "myrepo").length).toBe(1);
     }
   });
 
@@ -119,6 +152,15 @@ describe("repo commands", () => {
 
     // Global repo symlink stays
     expect(existsSync(paths.repoEntry("myrepo"))).toBe(true);
+
+    // Workspace tree entry is removed
+    let wsTreeGone = false;
+    try {
+      lstatSync(paths.workspaceTreeEntry("myws", "myrepo"));
+    } catch {
+      wsTreeGone = true;
+    }
+    expect(wsTreeGone).toBe(true);
   });
 
   it("remove refuses if real worktrees exist without --force", () => {
@@ -141,6 +183,14 @@ describe("repo commands", () => {
     expect(existsSync(paths.repoDir("myws", "myrepo"))).toBe(false);
     // Global repo entry stays
     expect(existsSync(paths.repoEntry("myrepo"))).toBe(true);
+  });
+
+  it("remove succeeds when workspace tree entry is already missing", () => {
+    addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    // Manually remove the tree entry before calling removeRepo
+    rmSync(paths.workspaceTreeEntry("myws", "myrepo"));
+    const result = removeRepo("myws", "myrepo", {}, paths, GIT_ENV);
+    expect(result.ok).toBe(true);
   });
 
   it("dangling symlink reported in list status", () => {
