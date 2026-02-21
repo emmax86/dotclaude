@@ -11,6 +11,7 @@ import { realpathSync } from "node:fs";
 import { type Paths } from "../constants";
 import { type Result, ok, err, type WorkspaceConfig } from "../types";
 import { writeConfig, readConfig } from "../lib/config";
+import { generateVSCodeWorkspace } from "../lib/vscode";
 import { removeWorktree, type GitEnv } from "../lib/git";
 import { removePoolWorktreeReference } from "./worktree";
 
@@ -48,6 +49,8 @@ export function addWorkspace(name: string, paths: Paths): Result<WorkspaceInfo> 
 
   const config: WorkspaceConfig = { name, repos: [] };
   writeConfig(paths.workspaceConfig(name), config);
+
+  generateVSCodeWorkspace(name, paths);
 
   return ok({ name, path: wsPath });
 }

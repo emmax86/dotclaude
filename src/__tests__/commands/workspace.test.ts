@@ -122,6 +122,16 @@ describe("workspace commands", () => {
     }
   });
 
+  it("addWorkspace generates .code-workspace file", () => {
+    const result = addWorkspace("myws", paths);
+    expect(result.ok).toBe(true);
+
+    const wsFilePath = paths.vscodeWorkspace("myws");
+    const content = JSON.parse(require("node:fs").readFileSync(wsFilePath, "utf-8"));
+    expect(content.folders[0]).toEqual({ path: ".", name: "myws (workspace)" });
+    expect(content.settings["files.exclude"].trees).toBe(true);
+  });
+
   it("add rejects reserved name 'worktrees'", () => {
     const result = addWorkspace("worktrees", paths);
     expect(result.ok).toBe(false);

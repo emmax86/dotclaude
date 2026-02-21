@@ -13,6 +13,7 @@ import { type Paths } from "../constants";
 import { type Result, ok, err } from "../types";
 import { type RepoEntry } from "../types";
 import { readConfig, addRepoToConfig, removeRepoFromConfig } from "../lib/config";
+import { generateVSCodeWorkspace } from "../lib/vscode";
 import { isGitRepo, getDefaultBranch, removeWorktree, type GitEnv } from "../lib/git";
 import { removePoolWorktreeReference } from "./worktree";
 import { toSlug } from "../lib/slug";
@@ -128,6 +129,8 @@ export function addRepo(
     }
     return err(String(e), "REPO_ADD_ERROR");
   }
+
+  generateVSCodeWorkspace(workspace, paths);
 
   return ok({ name, path: absPath, status: "ok" });
 }
@@ -255,6 +258,8 @@ export function removeRepo(
   // Remove from workspace.json (global repo entry stays)
   const removeResult = removeRepoFromConfig(paths.workspaceConfig(workspace), name);
   if (!removeResult.ok) return removeResult;
+
+  generateVSCodeWorkspace(workspace, paths);
 
   return ok(undefined);
 }

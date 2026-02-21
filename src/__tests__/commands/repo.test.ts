@@ -195,6 +195,25 @@ describe("repo commands", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("addRepo updates .code-workspace with repo folder", () => {
+    addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    const content = JSON.parse(
+      require("node:fs").readFileSync(paths.vscodeWorkspace("myws"), "utf-8"),
+    );
+    expect(content.folders).toHaveLength(2);
+    expect(content.folders[1]).toEqual({ path: "trees/myrepo", name: "myrepo" });
+  });
+
+  it("removeRepo removes repo from .code-workspace", () => {
+    addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    removeRepo("myws", "myrepo", {}, paths, GIT_ENV);
+    const content = JSON.parse(
+      require("node:fs").readFileSync(paths.vscodeWorkspace("myws"), "utf-8"),
+    );
+    expect(content.folders).toHaveLength(1);
+    expect(content.folders[0].path).toBe(".");
+  });
+
   it("dangling symlink reported in list status", () => {
     addRepo("myws", repoPath, undefined, paths, GIT_ENV);
     // Remove the actual repo directory to make symlink dangling

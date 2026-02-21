@@ -8,6 +8,7 @@ export interface Paths {
   workspaceDotClaude: (name: string) => string;
   workspaceTrees: (ws: string) => string;
   workspaceTreeEntry: (ws: string, repo: string) => string;
+  vscodeWorkspace: (name: string) => string;
   repoEntry: (repoName: string) => string;
   repoDir: (workspace: string, repo: string) => string;
   worktreeDir: (workspace: string, repo: string, slug: string) => string;
@@ -26,6 +27,7 @@ export function createPaths(root: string): Paths {
     workspaceDotClaude: (name) => join(root, name, ".claude"),
     workspaceTrees: (ws) => join(root, ws, "trees"),
     workspaceTreeEntry: (ws, repo) => join(root, ws, "trees", repo),
+    vscodeWorkspace: (name) => join(root, name, `${name}.code-workspace`),
     repoEntry: (repoName) => join(root, "repos", repoName),
     repoDir: (workspace, repo) => join(root, workspace, repo),
     worktreeDir: (workspace, repo, slug) => join(root, workspace, repo, slug),
