@@ -1,9 +1,21 @@
-import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  unlinkSync,
+} from "node:fs";
+import { dirname, relative } from "node:path";
 import { type Paths } from "../constants";
 import { type Result, ok, err, type WorkspaceConfig } from "../types";
 import { writeConfig, readConfig } from "../lib/config";
 import { generateVSCodeWorkspace } from "../lib/vscode";
-import { removeWorktree, type GitEnv } from "../lib/git";
+import { isGitRepo, getDefaultBranch, removeWorktree, type GitEnv } from "../lib/git";
+import { toSlug } from "../lib/slug";
 import {
   classifyWorktreeEntry,
   resolveRepoPath,
@@ -154,4 +166,100 @@ export function removeWorkspace(
 
   rmSync(wsPath, { recursive: true, force: true });
   return ok(undefined);
+}
+
+export interface SyncRepoResult {
+  name: string;
+  status: "ok" | "repaired" | "dangling";
+  repairs: string[];
+}
+
+export interface SyncResult {
+  repos: SyncRepoResult[];
+}
+
+export function syncWorkspace(name: string, paths: Paths, env?: GitEnv): Result<SyncResult> {
+  const wsPath = paths.workspace(name);
+  if (!existsSync(wsPath)) {
+    return err(`Workspace "${name}" not found`, "WORKSPACE_NOT_FOUND");
+  }
+
+  const configResult = readConfig(paths.workspaceConfig(name));
+  if (!configResult.ok) return configResult;
+
+  const config = configResult.value;
+  const repoResults: SyncRepoResult[] = [];
+
+  for (const repo of config.repos) {
+    const repairs: string[] = [];
+
+    if (!isGitRepo(repo.path)) {
+      repoResults.push({ name: repo.name, status: "dangling", repairs: [] });
+      continue;
+    }
+
+    // Ensure repos/<name> symlink exists and points to the right path
+    const treePath = paths.repoEntry(repo.name);
+    let repoLinkOk = false;
+    try {
+      lstatSync(treePath);
+      try {
+        const existing = realpathSync(treePath);
+        const expected = realpathSync(repo.path);
+        repoLinkOk = existing === expected;
+      } catch {
+        // dangling symlink
+      }
+      if (!repoLinkOk) {
+        unlinkSync(treePath);
+      }
+    } catch {
+      // doesn't exist
+    }
+    if (!repoLinkOk) {
+      mkdirSync(paths.repos, { recursive: true });
+      symlinkSync(repo.path, treePath);
+      repairs.push(`created repos/${repo.name}`);
+    }
+
+    // Ensure trees/<repo>/ directory exists
+    const repoDirPath = paths.repoDir(name, repo.name);
+    if (!existsSync(repoDirPath)) {
+      mkdirSync(repoDirPath, { recursive: true });
+      repairs.push(`created trees/${repo.name}/`);
+    }
+
+    // Ensure default-branch symlink exists
+    const branchResult = getDefaultBranch(repo.path, env);
+    if (!branchResult.ok) {
+      repoResults.push({ name: repo.name, status: "dangling", repairs });
+      continue;
+    }
+
+    const slug = toSlug(branchResult.value);
+    const slugPath = paths.worktreeDir(name, repo.name, slug);
+    let slugOk = false;
+    try {
+      lstatSync(slugPath);
+      try {
+        realpathSync(slugPath);
+        slugOk = true;
+      } catch {
+        unlinkSync(slugPath);
+      }
+    } catch {
+      // doesn't exist
+    }
+    if (!slugOk) {
+      symlinkSync(relative(dirname(slugPath), paths.repoEntry(repo.name)), slugPath);
+      repairs.push(`created trees/${repo.name}/${slug}`);
+    }
+
+    repoResults.push({ name: repo.name, status: repairs.length > 0 ? "repaired" : "ok", repairs });
+  }
+
+  const vscodeResult = generateVSCodeWorkspace(name, paths);
+  if (!vscodeResult.ok) return vscodeResult;
+
+  return ok({ repos: repoResults });
 }

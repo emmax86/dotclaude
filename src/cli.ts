@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { createPaths, DEFAULT_WORKSPACES_ROOT } from "./constants";
 import { inferContext } from "./context";
-import { addWorkspace, listWorkspaces, removeWorkspace } from "./commands/workspace";
+import { addWorkspace, listWorkspaces, removeWorkspace, syncWorkspace } from "./commands/workspace";
 import { addRepo, listRepos, removeRepo } from "./commands/repo";
 import { addWorktree, listWorktrees, removeWorktree } from "./commands/worktree";
 import { getStatus } from "./commands/status";
@@ -107,7 +107,7 @@ function main() {
 
   const subcmd = argv[1];
   if (!subcmd) {
-    console.error("Usage: dotclaude ws <add|list|remove|repo|worktree|status|path>");
+    console.error("Usage: dotclaude ws <add|list|remove|repo|worktree|status|path|sync>");
     process.exit(1);
   }
 
@@ -287,6 +287,16 @@ function main() {
         process.exit(1);
       }
       output(getStatus(workspace, paths), porcelain);
+      break;
+    }
+
+    case "sync": {
+      const workspace = parsed.positional[0] ?? ctx.workspace;
+      if (!workspace) {
+        console.error("Usage: dotclaude ws sync [workspace]");
+        process.exit(1);
+      }
+      output(syncWorkspace(workspace, paths), porcelain);
       break;
     }
 

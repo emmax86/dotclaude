@@ -1,9 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { join } from "node:path";
-import { existsSync, lstatSync, mkdirSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "../helpers";
 import { createPaths } from "../../constants";
-import { addWorkspace, listWorkspaces, removeWorkspace } from "../../commands/workspace";
+import {
+  addWorkspace,
+  listWorkspaces,
+  removeWorkspace,
+  syncWorkspace,
+} from "../../commands/workspace";
 import { addRepo } from "../../commands/repo";
 import { addWorktree } from "../../commands/worktree";
 
@@ -181,5 +186,138 @@ describe("workspace commands", () => {
     if (result.ok) {
       expect(result.value).toEqual([]);
     }
+  });
+
+  describe("syncWorkspace", () => {
+    it("fails with WORKSPACE_NOT_FOUND for unknown workspace", () => {
+      const result = syncWorkspace("ghost", paths, GIT_ENV);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.code).toBe("WORKSPACE_NOT_FOUND");
+      }
+    });
+
+    it("returns ok status for fully intact workspace", () => {
+      const repoPath = createTestGitRepo(tempDir, "repo");
+      addWorkspace("myws", paths);
+      addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+
+      const result = syncWorkspace("myws", paths, GIT_ENV);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.repos).toHaveLength(1);
+        expect(result.value.repos[0].status).toBe("ok");
+        expect(result.value.repos[0].repairs).toHaveLength(0);
+      }
+    });
+
+    it("marks dangling repos (source path gone) without crashing", () => {
+      const repoPath = createTestGitRepo(tempDir, "gone-repo");
+      addWorkspace("myws", paths);
+      addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+      rmSync(repoPath, { recursive: true, force: true });
+
+      const result = syncWorkspace("myws", paths, GIT_ENV);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.repos[0].status).toBe("dangling");
+      }
+    });
+
+    it("recreates missing repos/<name> symlink", () => {
+      const repoPath = createTestGitRepo(tempDir, "repo");
+      addWorkspace("myws", paths);
+      addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+
+      rmSync(paths.repoEntry("repo"), { force: true });
+
+      const result = syncWorkspace("myws", paths, GIT_ENV);
+      expect(result.ok).toBe(true);
+      expect(realpathSync(paths.repoEntry("repo"))).toBe(realpathSync(repoPath));
+      if (result.ok) {
+        expect(result.value.repos[0].status).toBe("repaired");
+      }
+    });
+
+    it("repairs dangling repos/<name> symlink", () => {
+      const repoPath = createTestGitRepo(tempDir, "repo");
+      addWorkspace("myws", paths);
+      addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+
+      rmSync(paths.repoEntry("repo"), { force: true });
+      symlinkSync("/nonexistent/path", paths.repoEntry("repo"));
+
+      const result = syncWorkspace("myws", paths, GIT_ENV);
+      expect(result.ok).toBe(true);
+      expect(realpathSync(paths.repoEntry("repo"))).toBe(realpathSync(repoPath));
+      if (result.ok) {
+        expect(result.value.repos[0].status).toBe("repaired");
+      }
+    });
+
+    it("recreates missing trees/<repo>/ directory", () => {
+      const repoPath = createTestGitRepo(tempDir, "repo");
+      addWorkspace("myws", paths);
+      addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+
+      rmSync(paths.repoDir("myws", "repo"), { recursive: true, force: true });
+      expect(existsSync(paths.repoDir("myws", "repo"))).toBe(false);
+
+      const result = syncWorkspace("myws", paths, GIT_ENV);
+      expect(result.ok).toBe(true);
+      expect(existsSync(paths.repoDir("myws", "repo"))).toBe(true);
+      if (result.ok) {
+        expect(result.value.repos[0].status).toBe("repaired");
+      }
+    });
+
+    it("recreates missing default-branch symlink", () => {
+      const repoPath = createTestGitRepo(tempDir, "repo");
+      addWorkspace("myws", paths);
+      addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+
+      const slugPath = paths.worktreeDir("myws", "repo", "main");
+      rmSync(slugPath, { force: true });
+
+      const result = syncWorkspace("myws", paths, GIT_ENV);
+      expect(result.ok).toBe(true);
+      expect(lstatSync(slugPath).isSymbolicLink()).toBe(true);
+      expect(existsSync(slugPath)).toBe(true); // resolves (not dangling)
+      if (result.ok) {
+        expect(result.value.repos[0].status).toBe("repaired");
+      }
+    });
+
+    it("repairs dangling default-branch symlink", () => {
+      const repoPath = createTestGitRepo(tempDir, "repo");
+      addWorkspace("myws", paths);
+      addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+
+      const slugPath = paths.worktreeDir("myws", "repo", "main");
+      rmSync(slugPath, { force: true });
+      symlinkSync("/nonexistent/path", slugPath);
+
+      const result = syncWorkspace("myws", paths, GIT_ENV);
+      expect(result.ok).toBe(true);
+      expect(existsSync(slugPath)).toBe(true); // resolves after repair
+      if (result.ok) {
+        expect(result.value.repos[0].status).toBe("repaired");
+      }
+    });
+
+    it("is idempotent — running twice reports ok on the second pass", () => {
+      const repoPath = createTestGitRepo(tempDir, "repo");
+      addWorkspace("myws", paths);
+      addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+      rmSync(paths.repoEntry("repo"), { force: true });
+
+      syncWorkspace("myws", paths, GIT_ENV); // first pass repairs
+      const second = syncWorkspace("myws", paths, GIT_ENV); // second pass should be clean
+      expect(second.ok).toBe(true);
+      if (second.ok) {
+        expect(second.value.repos[0].status).toBe("ok");
+        expect(second.value.repos[0].repairs).toHaveLength(0);
+      }
+    });
   });
 });
