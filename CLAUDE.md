@@ -72,6 +72,7 @@ When implementing features, follow strict test-driven development:
 3. **Refactor**: Clean up while keeping tests green.
 
 Rules:
+
 - Never write implementation before a failing test exists for the behavior.
 - Test the `Result<T>` return value, not side effects alone — check both `result.ok` and the value/error.
 - Use `createTestGitRepo()` and real filesystem state, not mocks.

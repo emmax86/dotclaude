@@ -1,13 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { join } from "node:path";
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  symlinkSync,
-  writeFileSync,
-  rmSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync, rmSync } from "node:fs";
 import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "../helpers";
 import { createPaths } from "../../constants";
 import { writeConfig } from "../../lib/config";
