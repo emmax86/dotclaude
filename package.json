@@ -1,0 +1,12 @@
+{
+  "name": "dotclaude",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "build": "bun build --compile src/cli.ts --outfile dotclaude"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}
