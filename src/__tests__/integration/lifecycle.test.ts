@@ -63,7 +63,7 @@ describe("lifecycle integration", () => {
       "feature/lifecycle",
       { newBranch: true },
       paths,
-      GIT_ENV
+      GIT_ENV,
     );
     expect(result.ok).toBe(true);
 
@@ -108,7 +108,7 @@ describe("lifecycle integration", () => {
     expect(list1.ok && list2.ok).toBe(true);
     if (list1.ok && list2.ok) {
       expect(list1.value.find((r) => r.name === "myrepo")?.path).toBe(
-        list2.value.find((r) => r.name === "myrepo")?.path
+        list2.value.find((r) => r.name === "myrepo")?.path,
       );
     }
   });
@@ -118,7 +118,14 @@ describe("lifecycle integration", () => {
     addRepo("otherws", repoPath, undefined, paths, GIT_ENV);
 
     // Add same branch to both workspaces
-    const r1 = addWorktree("myws", "myrepo", "feature/pool-share", { newBranch: true }, paths, GIT_ENV);
+    const r1 = addWorktree(
+      "myws",
+      "myrepo",
+      "feature/pool-share",
+      { newBranch: true },
+      paths,
+      GIT_ENV,
+    );
     expect(r1.ok).toBe(true);
     const r2 = addWorktree("otherws", "myrepo", "feature/pool-share", {}, paths, GIT_ENV);
     expect(r2.ok).toBe(true);
@@ -138,7 +145,11 @@ describe("lifecycle integration", () => {
     expect(rm1.ok).toBe(true);
 
     let ws1Gone = false;
-    try { lstatSync(ws1Link); } catch { ws1Gone = true; }
+    try {
+      lstatSync(ws1Link);
+    } catch {
+      ws1Gone = true;
+    }
     expect(ws1Gone).toBe(true);
     expect(existsSync(poolEntry)).toBe(true);
     expect(lstatSync(ws2Link).isSymbolicLink()).toBe(true);

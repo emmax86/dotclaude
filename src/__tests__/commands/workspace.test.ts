@@ -158,6 +158,8 @@ describe("workspace commands", () => {
 
     // Pool entry persists for ws2
     expect(existsSync(poolEntry)).toBe(true);
-    expect(lstatSync(paths.worktreeDir("ws2", "repo", "feature-shared")).isSymbolicLink()).toBe(true);
+    expect(lstatSync(paths.worktreeDir("ws2", "repo", "feature-shared")).isSymbolicLink()).toBe(
+      true,
+    );
   });
 });

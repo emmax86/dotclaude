@@ -13,6 +13,7 @@ When invoked from inside a workspace, workspace is inferred from `$PWD`.
 ## Output
 
 JSON format (default):
+
 ```json
 {
   "ok": true,
@@ -25,8 +26,13 @@ JSON format (default):
         "path": "/Users/emma/Projects/cadence",
         "status": "ok",
         "worktrees": [
-          { "repo": "cadence", "slug": "main",         "branch": "main",         "type": "linked"   },
-          { "repo": "cadence", "slug": "feature-auth", "branch": "feature-auth", "type": "worktree" }
+          { "repo": "cadence", "slug": "main", "branch": "main", "type": "linked" },
+          {
+            "repo": "cadence",
+            "slug": "feature-auth",
+            "branch": "feature-auth",
+            "type": "worktree"
+          }
         ]
       }
     ]
@@ -44,6 +50,7 @@ JSON format (default):
 ## Instructions
 
 When the user invokes `/workspace-status`:
+
 1. Run `dotclaude ws status` (infer workspace from cwd if not specified)
 2. Parse the JSON output
 3. Present a human-readable summary showing:

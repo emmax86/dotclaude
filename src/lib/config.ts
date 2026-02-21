@@ -1,5 +1,12 @@
 import { readFileSync, writeFileSync } from "node:fs";
-import { type Result, ok, err, type WorkspaceConfig, type RepoEntry, type WorktreePool } from "../types";
+import {
+  type Result,
+  ok,
+  err,
+  type WorkspaceConfig,
+  type RepoEntry,
+  type WorktreePool,
+} from "../types";
 
 export function readConfig(configPath: string): Result<WorkspaceConfig> {
   let raw: string;
@@ -87,7 +94,7 @@ export function addPoolReference(
   path: string,
   repo: string,
   slug: string,
-  workspace: string
+  workspace: string,
 ): Result<void> {
   const result = readPoolConfig(path);
   if (!result.ok) return result;
@@ -106,7 +113,7 @@ export function removePoolReference(
   path: string,
   repo: string,
   slug: string,
-  workspace: string
+  workspace: string,
 ): Result<{ remaining: number }> {
   const result = readPoolConfig(path);
   if (!result.ok) return result;
@@ -139,7 +146,7 @@ export function removePoolReference(
 export function getPoolSlugsForWorkspace(
   path: string,
   repo: string,
-  workspace: string
+  workspace: string,
 ): Result<string[]> {
   const result = readPoolConfig(path);
   if (!result.ok) return result;

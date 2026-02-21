@@ -36,7 +36,4 @@ export function createPaths(root: string): Paths {
   };
 }
 
-export const DEFAULT_WORKSPACES_ROOT = join(
-  process.env.HOME ?? "/tmp",
-  "dotclaude-workspaces"
-);
+export const DEFAULT_WORKSPACES_ROOT = join(process.env.HOME ?? "/tmp", "dotclaude-workspaces");

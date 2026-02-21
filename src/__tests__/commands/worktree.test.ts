@@ -1,6 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { join } from "node:path";
-import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  readlinkSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "../helpers";
 import { createPaths } from "../../constants";
 import { addWorkspace } from "../../commands/workspace";
@@ -75,7 +83,12 @@ describe("worktree commands", () => {
 
   it("add with --new creates new branch", () => {
     const result = addWorktree(
-      "myws", "myrepo", "brand-new-branch", { newBranch: true }, paths, GIT_ENV
+      "myws",
+      "myrepo",
+      "brand-new-branch",
+      { newBranch: true },
+      paths,
+      GIT_ENV,
     );
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -86,9 +99,12 @@ describe("worktree commands", () => {
 
   it("add with --from branches off specified base", () => {
     const result = addWorktree(
-      "myws", "myrepo", "feature/from-main",
+      "myws",
+      "myrepo",
+      "feature/from-main",
       { newBranch: true, from: "main" },
-      paths, GIT_ENV
+      paths,
+      GIT_ENV,
     );
     expect(result.ok).toBe(true);
   });
@@ -104,7 +120,14 @@ describe("worktree commands", () => {
   it("add detects slug collision (target dir already exists)", () => {
     addWorktree("myws", "myrepo", "feature/auth", { newBranch: true }, paths, GIT_ENV);
     // feature-auth slug already exists
-    const result = addWorktree("myws", "myrepo", "feature-auth", { newBranch: true }, paths, GIT_ENV);
+    const result = addWorktree(
+      "myws",
+      "myrepo",
+      "feature-auth",
+      { newBranch: true },
+      paths,
+      GIT_ENV,
+    );
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.code).toBe("SLUG_COLLISION");
@@ -157,7 +180,14 @@ describe("worktree commands", () => {
     const poolEntryPath = paths.worktreePoolEntry("myrepo", "feature-dirty2");
     writeFileSync(join(poolEntryPath, "dirty.txt"), "dirty");
 
-    const result = removeWorktree("myws", "myrepo", "feature-dirty2", { force: true }, paths, GIT_ENV);
+    const result = removeWorktree(
+      "myws",
+      "myrepo",
+      "feature-dirty2",
+      { force: true },
+      paths,
+      GIT_ENV,
+    );
     expect(result.ok).toBe(true);
   });
 
@@ -187,7 +217,9 @@ describe("worktree commands", () => {
       lstatSync(treeEntry);
       rmSync(treeEntry);
       removed = true;
-    } catch { /* already gone from previous test */ }
+    } catch {
+      /* already gone from previous test */
+    }
 
     const result = listWorktrees("myws", "myrepo", paths);
     expect(result.ok).toBe(true);
@@ -227,14 +259,20 @@ describe("worktree commands", () => {
 
     // ws1 symlink is gone
     let ws1Gone = false;
-    try { lstatSync(paths.worktreeDir("myws", "myrepo", "feature-cross")); } catch { ws1Gone = true; }
+    try {
+      lstatSync(paths.worktreeDir("myws", "myrepo", "feature-cross"));
+    } catch {
+      ws1Gone = true;
+    }
     expect(ws1Gone).toBe(true);
 
     // Pool entry persists
     expect(existsSync(poolEntry)).toBe(true);
 
     // ws2 symlink intact
-    expect(lstatSync(paths.worktreeDir("otherws", "myrepo", "feature-cross")).isSymbolicLink()).toBe(true);
+    expect(
+      lstatSync(paths.worktreeDir("otherws", "myrepo", "feature-cross")).isSymbolicLink(),
+    ).toBe(true);
 
     // worktrees.json has only otherws
     const pool1 = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));

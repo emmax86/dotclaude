@@ -92,7 +92,7 @@ describe("git lib", () => {
         wtPath,
         "from-branch",
         { newBranch: true, from: "main" },
-        GIT_ENV
+        GIT_ENV,
       );
       expect(result.ok).toBe(true);
     });

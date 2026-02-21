@@ -4,9 +4,20 @@
   "type": "module",
   "scripts": {
     "test": "bun test",
-    "build": "bun build --compile src/cli.ts --outfile dotclaude"
+    "build": "bun build --compile src/cli.ts --outfile dotclaude",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,json,md}": "prettier --write"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@commitlint/cli": "^20.4.2",
+    "@commitlint/config-conventional": "^20.4.2",
+    "@types/bun": "latest",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "prettier": "^3.8.1"
   }
 }

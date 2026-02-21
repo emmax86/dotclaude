@@ -13,7 +13,7 @@ export interface RunResult {
 
 export function runCLI(
   args: string[],
-  options: { cwd?: string; root?: string; pwd?: string } = {}
+  options: { cwd?: string; root?: string; pwd?: string } = {},
 ): RunResult {
   const env: Record<string, string> = {
     PATH: process.env.PATH ?? "",
@@ -41,7 +41,9 @@ export function runCLI(
   let json: Record<string, unknown> | undefined;
   try {
     json = JSON.parse(stdout);
-  } catch { /* not JSON */ }
+  } catch {
+    /* not JSON */
+  }
 
   return { stdout, stderr, exitCode, json };
 }
@@ -53,7 +55,9 @@ export function createTempRoot(): string {
 export function cleanupTempRoot(dir: string): void {
   try {
     rmSync(dir, { recursive: true, force: true });
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 /** Create a minimal git repo with an initial commit and return its path. */

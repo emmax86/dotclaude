@@ -29,7 +29,7 @@ export function addWorktree(
   branch: string,
   options: AddWorktreeOptions,
   paths: Paths,
-  env?: GitEnv
+  env?: GitEnv,
 ): Result<WorktreeEntry> {
   // Validate repo is registered
   const configResult = readConfig(paths.workspaceConfig(workspace));
@@ -57,9 +57,11 @@ export function addWorktree(
     lstatSync(wtPath);
     return err(
       `Target directory already exists: "${wtPath}". Branch slug "${slug}" collides with an existing entry.`,
-      "SLUG_COLLISION"
+      "SLUG_COLLISION",
     );
-  } catch { /* does not exist — proceed */ }
+  } catch {
+    /* does not exist — proceed */
+  }
 
   const poolEntryPath = paths.worktreePoolEntry(repo, slug);
   let poolEntryCreated = false;
@@ -77,7 +79,7 @@ export function addWorktree(
       poolEntryPath,
       branch,
       { newBranch: options.newBranch, from: options.from },
-      env
+      env,
     );
     if (!gitResult.ok) return gitResult;
     poolEntryCreated = true;
@@ -91,7 +93,9 @@ export function addWorktree(
     if (poolEntryCreated) {
       try {
         gitRemoveWorktree(realRepoPath, poolEntryPath, true, env);
-      } catch { /* best-effort */ }
+      } catch {
+        /* best-effort */
+      }
     }
     return err(`Failed to create workspace symlink: ${String(e)}`, "SYMLINK_CREATE_FAILED");
   }
@@ -100,11 +104,17 @@ export function addWorktree(
   const refResult = addPoolReference(paths.worktreePoolConfig, repo, slug, workspace);
   if (!refResult.ok) {
     // Rollback: remove symlink and optionally pool entry
-    try { rmSync(wtPath); } catch { /* best-effort */ }
+    try {
+      rmSync(wtPath);
+    } catch {
+      /* best-effort */
+    }
     if (poolEntryCreated) {
       try {
         gitRemoveWorktree(realRepoPath, poolEntryPath, true, env);
-      } catch { /* best-effort */ }
+      } catch {
+        /* best-effort */
+      }
     }
     return refResult;
   }
@@ -115,7 +125,7 @@ export function addWorktree(
 export function listWorktrees(
   workspace: string,
   repo: string,
-  paths: Paths
+  paths: Paths,
 ): Result<WorktreeEntry[]> {
   const repoDir = paths.repoDir(workspace, repo);
   if (!existsSync(repoDir)) {
@@ -168,7 +178,7 @@ export function removeWorktree(
   slug: string,
   options: { force?: boolean },
   paths: Paths,
-  env?: GitEnv
+  env?: GitEnv,
 ): Result<void> {
   const wtPath = paths.worktreeDir(workspace, repo, slug);
 
@@ -188,7 +198,7 @@ export function removeWorktree(
       // Can't read link — treat as default branch (safe fallback)
       return err(
         `Cannot remove default branch symlink "${slug}". Remove the repo instead.`,
-        "CANNOT_REMOVE_DEFAULT_BRANCH"
+        "CANNOT_REMOVE_DEFAULT_BRANCH",
       );
     }
 
@@ -196,14 +206,18 @@ export function removeWorktree(
       // Pool symlink: call removePoolWorktreeReference first, then remove symlink
       const refResult = removePoolWorktreeReference(workspace, repo, slug, options, paths, env);
       if (!refResult.ok) return refResult;
-      try { rmSync(wtPath); } catch { /* best-effort */ }
+      try {
+        rmSync(wtPath);
+      } catch {
+        /* best-effort */
+      }
       return ok(undefined);
     }
 
     // Default-branch symlink (../trees/...) or unknown
     return err(
       `Cannot remove default branch symlink "${slug}". Remove the repo instead.`,
-      "CANNOT_REMOVE_DEFAULT_BRANCH"
+      "CANNOT_REMOVE_DEFAULT_BRANCH",
     );
   }
 
@@ -230,7 +244,7 @@ export function removePoolWorktreeReference(
   slug: string,
   options: { force?: boolean },
   paths: Paths,
-  env?: GitEnv
+  env?: GitEnv,
 ): Result<void> {
   const poolEntryPath = paths.worktreePoolEntry(repo, slug);
   const poolConfig = paths.worktreePoolConfig;
@@ -251,7 +265,11 @@ export function removePoolWorktreeReference(
       realRepoPath = realpathSync(treePath);
     } catch {
       // Dangling repo symlink — just clean up pool entry directly
-      try { rmSync(poolEntryPath, { recursive: true, force: true }); } catch { /* best-effort */ }
+      try {
+        rmSync(poolEntryPath, { recursive: true, force: true });
+      } catch {
+        /* best-effort */
+      }
       const danglingRefResult = removePoolReference(poolConfig, repo, slug, workspace);
       if (!danglingRefResult.ok) return danglingRefResult;
       return ok(undefined);
@@ -267,7 +285,9 @@ export function removePoolWorktreeReference(
       if (remaining2.length === 0) {
         rmSync(poolRepoDir, { recursive: true, force: true });
       }
-    } catch { /* best-effort */ }
+    } catch {
+      /* best-effort */
+    }
   }
 
   // Update metadata

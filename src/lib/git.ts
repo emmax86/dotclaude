@@ -15,7 +15,7 @@ export interface GitEnv {
 function spawnGit(
   args: string[],
   cwd: string,
-  env?: GitEnv
+  env?: GitEnv,
 ): { success: boolean; stdout: string; stderr: string } {
   const mergedEnv = env ? { ...process.env, ...env } : process.env;
   const result = Bun.spawnSync(["git", ...args], {
@@ -53,7 +53,7 @@ export function addWorktree(
   worktreePath: string,
   branch: string,
   options: AddWorktreeOptions = {},
-  env?: GitEnv
+  env?: GitEnv,
 ): Result<void> {
   let args: string[];
 
@@ -77,7 +77,7 @@ export function removeWorktree(
   repoPath: string,
   worktreePath: string,
   force = false,
-  env?: GitEnv
+  env?: GitEnv,
 ): Result<void> {
   const args = ["worktree", "remove"];
   if (force) args.push("--force");

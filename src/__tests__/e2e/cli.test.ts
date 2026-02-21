@@ -6,8 +6,12 @@ import { runCLI, createTempRoot, cleanupTempRoot, createGitRepo } from "./helper
 describe("E2E: CLI output shape", () => {
   let root: string;
 
-  beforeEach(() => { root = createTempRoot(); });
-  afterEach(() => { cleanupTempRoot(root); });
+  beforeEach(() => {
+    root = createTempRoot();
+  });
+  afterEach(() => {
+    cleanupTempRoot(root);
+  });
 
   it("success writes JSON to stdout only, stderr is empty", () => {
     const r = runCLI(["ws", "add", "myws"], { root });
@@ -41,8 +45,12 @@ describe("E2E: CLI output shape", () => {
 describe("E2E: workspace commands", () => {
   let root: string;
 
-  beforeEach(() => { root = createTempRoot(); });
-  afterEach(() => { cleanupTempRoot(root); });
+  beforeEach(() => {
+    root = createTempRoot();
+  });
+  afterEach(() => {
+    cleanupTempRoot(root);
+  });
 
   it("ws add returns name and path, creates directory", () => {
     const r = runCLI(["ws", "add", "myws"], { root });
@@ -143,7 +151,9 @@ describe("E2E: repo commands", () => {
     runCLI(["ws", "add", "myws"], { root });
   });
 
-  afterEach(() => { cleanupTempRoot(root); });
+  afterEach(() => {
+    cleanupTempRoot(root);
+  });
 
   it("ws repo add registers repo and returns JSON", () => {
     const r = runCLI(["ws", "repo", "add", "myws", repoPath], { root });
@@ -224,7 +234,9 @@ describe("E2E: worktree commands", () => {
     runCLI(["ws", "repo", "add", "myws", repoPath], { root });
   });
 
-  afterEach(() => { cleanupTempRoot(root); });
+  afterEach(() => {
+    cleanupTempRoot(root);
+  });
 
   it("ws worktree add --new creates pool entry and workspace symlink", () => {
     const r = runCLI(["ws", "worktree", "add", "myrepo", "feature/x", "--new"], {
@@ -253,10 +265,13 @@ describe("E2E: worktree commands", () => {
   });
 
   it("ws worktree add --from creates branch from base", () => {
-    const r = runCLI(["ws", "worktree", "add", "myrepo", "feature/from-main", "--new", "--from", "main"], {
-      root,
-      cwd: join(root, "myws"),
-    });
+    const r = runCLI(
+      ["ws", "worktree", "add", "myrepo", "feature/from-main", "--new", "--from", "main"],
+      {
+        root,
+        cwd: join(root, "myws"),
+      },
+    );
     expect(r.exitCode).toBe(0);
   });
 
@@ -310,7 +325,11 @@ describe("E2E: worktree commands", () => {
 
     // Symlink gone
     let gone = false;
-    try { lstatSync(join(root, "myws", "myrepo", "feature-x")); } catch { gone = true; }
+    try {
+      lstatSync(join(root, "myws", "myrepo", "feature-x"));
+    } catch {
+      gone = true;
+    }
     expect(gone).toBe(true);
 
     // Pool entry gone (was last reference)
@@ -328,10 +347,12 @@ describe("E2E: worktree commands", () => {
 
   it("ws worktree add slug collision exits 1", () => {
     runCLI(["ws", "worktree", "add", "myrepo", "feature/x", "--new"], {
-      root, cwd: join(root, "myws"),
+      root,
+      cwd: join(root, "myws"),
     });
     const r = runCLI(["ws", "worktree", "add", "myrepo", "feature/x", "--new"], {
-      root, cwd: join(root, "myws"),
+      root,
+      cwd: join(root, "myws"),
     });
     expect(r.exitCode).toBe(1);
     expect(JSON.parse(r.stderr).code).toBe("SLUG_COLLISION");
@@ -343,20 +364,24 @@ describe("E2E: worktree commands", () => {
 
     // Add from myws first (creates pool entry)
     runCLI(["ws", "worktree", "add", "myrepo", "feature/shared", "--new"], {
-      root, cwd: join(root, "myws"),
+      root,
+      cwd: join(root, "myws"),
     });
 
     // Add from otherws (reuses pool entry)
     const r = runCLI(["ws", "worktree", "add", "myrepo", "feature/shared"], {
-      root, cwd: join(root, "otherws"),
+      root,
+      cwd: join(root, "otherws"),
     });
     expect(r.exitCode).toBe(0);
 
     // Both symlinks point to same pool entry
-    expect(readlinkSync(join(root, "myws", "myrepo", "feature-shared")))
-      .toBe("../../worktrees/myrepo/feature-shared");
-    expect(readlinkSync(join(root, "otherws", "myrepo", "feature-shared")))
-      .toBe("../../worktrees/myrepo/feature-shared");
+    expect(readlinkSync(join(root, "myws", "myrepo", "feature-shared"))).toBe(
+      "../../worktrees/myrepo/feature-shared",
+    );
+    expect(readlinkSync(join(root, "otherws", "myrepo", "feature-shared"))).toBe(
+      "../../worktrees/myrepo/feature-shared",
+    );
 
     // worktrees.json lists both
     const pool = JSON.parse(readFileSync(join(root, "worktrees.json"), "utf-8"));
@@ -365,16 +390,22 @@ describe("E2E: worktree commands", () => {
 
     // Remove from myws — pool persists for otherws
     runCLI(["ws", "worktree", "remove", "myrepo", "feature-shared"], {
-      root, cwd: join(root, "myws"),
+      root,
+      cwd: join(root, "myws"),
     });
     expect(existsSync(join(root, "worktrees", "myrepo", "feature-shared"))).toBe(true);
     let ws1Gone = false;
-    try { lstatSync(join(root, "myws", "myrepo", "feature-shared")); } catch { ws1Gone = true; }
+    try {
+      lstatSync(join(root, "myws", "myrepo", "feature-shared"));
+    } catch {
+      ws1Gone = true;
+    }
     expect(ws1Gone).toBe(true);
 
     // Remove from otherws — pool cleaned up
     runCLI(["ws", "worktree", "remove", "myrepo", "feature-shared"], {
-      root, cwd: join(root, "otherws"),
+      root,
+      cwd: join(root, "otherws"),
     });
     expect(existsSync(join(root, "worktrees", "myrepo", "feature-shared"))).toBe(false);
   });
@@ -395,7 +426,9 @@ describe("E2E: context inference via cwd", () => {
     });
   });
 
-  afterEach(() => { cleanupTempRoot(root); });
+  afterEach(() => {
+    cleanupTempRoot(root);
+  });
 
   it("workspace inferred from cwd at workspace root", () => {
     const r = runCLI(["ws", "repo", "list"], { root, cwd: join(root, "myws") });
@@ -456,11 +489,14 @@ describe("E2E: ws status", () => {
     runCLI(["ws", "repo", "add", "myws", repoPath], { root });
   });
 
-  afterEach(() => { cleanupTempRoot(root); });
+  afterEach(() => {
+    cleanupTempRoot(root);
+  });
 
   it("ws status returns workspace overview with repos and worktrees", () => {
     runCLI(["ws", "worktree", "add", "myrepo", "feature/s", "--new"], {
-      root, cwd: join(root, "myws"),
+      root,
+      cwd: join(root, "myws"),
     });
     const r = runCLI(["ws", "status", "myws"], { root });
     expect(r.exitCode).toBe(0);

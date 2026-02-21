@@ -26,7 +26,7 @@ export function addRepo(
   repoPath: string,
   nameOverride: string | undefined,
   paths: Paths,
-  env?: GitEnv
+  env?: GitEnv,
 ): Result<RepoInfo> {
   const absPath = resolve(repoPath);
 
@@ -60,7 +60,7 @@ export function addRepo(
     if (existingTarget !== realAbsPath) {
       return err(
         `repos/${name} already points to a different path. Use --name to pick a different name.`,
-        "TREE_NAME_CONFLICT"
+        "TREE_NAME_CONFLICT",
       );
     }
     // Same path — reuse existing tree symlink
@@ -122,7 +122,9 @@ export function addRepo(
       try {
         lstatSync(wsTreeEntry);
         rmSync(wsTreeEntry);
-      } catch { /* already gone */ }
+      } catch {
+        /* already gone */
+      }
     }
     return err(String(e), "REPO_ADD_ERROR");
   }
@@ -144,7 +146,7 @@ export function listRepos(workspace: string, paths: Paths): Result<RepoInfo[]> {
         status = "dangling";
       }
       return { ...repo, status };
-    })
+    }),
   );
 }
 
@@ -153,7 +155,7 @@ export function removeRepo(
   name: string,
   options: { force?: boolean },
   paths: Paths,
-  env?: GitEnv
+  env?: GitEnv,
 ): Result<void> {
   const repoDir = paths.repoDir(workspace, name);
   if (existsSync(repoDir)) {
@@ -171,7 +173,11 @@ export function removeRepo(
         const lstat = lstatSync(wtPath);
         if (lstat.isSymbolicLink()) {
           let target: string;
-          try { target = readlinkSync(wtPath); } catch { continue; }
+          try {
+            target = readlinkSync(wtPath);
+          } catch {
+            continue;
+          }
           if (target.startsWith("../../worktrees/")) {
             poolSlugs.push(slug);
           }
@@ -190,7 +196,7 @@ export function removeRepo(
       const all = [...poolSlugs, ...legacySlugs];
       return err(
         `Repo "${name}" has worktrees: ${all.join(", ")}. Use --force to remove.`,
-        "REPO_HAS_WORKTREES"
+        "REPO_HAS_WORKTREES",
       );
     }
 
@@ -204,11 +210,18 @@ export function removeRepo(
       }
 
       for (const slug of poolSlugs) {
-        const removeResult = removePoolWorktreeReference(workspace, name, slug, { force: true }, paths, env);
+        const removeResult = removePoolWorktreeReference(
+          workspace,
+          name,
+          slug,
+          { force: true },
+          paths,
+          env,
+        );
         if (!removeResult.ok) {
           return err(
             `Failed to remove pool worktree ${slug}: ${removeResult.error}`,
-            "WORKTREE_REMOVE_FAILED"
+            "WORKTREE_REMOVE_FAILED",
           );
         }
       }
@@ -220,7 +233,7 @@ export function removeRepo(
           if (!removeResult.ok) {
             return err(
               `Failed to remove worktree ${slug}: ${removeResult.error}`,
-              "WORKTREE_REMOVE_FAILED"
+              "WORKTREE_REMOVE_FAILED",
             );
           }
         }
@@ -235,7 +248,9 @@ export function removeRepo(
   try {
     lstatSync(wsTreeEntry);
     rmSync(wsTreeEntry);
-  } catch { /* not present, skip */ }
+  } catch {
+    /* not present, skip */
+  }
 
   // Remove from workspace.json (global repo entry stays)
   const removeResult = removeRepoFromConfig(paths.workspaceConfig(workspace), name);

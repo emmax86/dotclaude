@@ -1,4 +1,12 @@
-import { existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, rmSync, statSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readlinkSync,
+  rmSync,
+  statSync,
+} from "node:fs";
 import { realpathSync } from "node:fs";
 import { type Paths } from "../constants";
 import { type Result, ok, err, type WorkspaceConfig } from "../types";
@@ -15,7 +23,7 @@ function validateName(name: string): Result<void> {
   if (RESERVED_NAMES.has(name)) {
     return err(
       `"${name}" is a reserved name and cannot be used as a workspace name`,
-      "RESERVED_NAME"
+      "RESERVED_NAME",
     );
   }
   return ok(undefined);
@@ -73,7 +81,7 @@ export function removeWorkspace(
   name: string,
   options: { force?: boolean },
   paths: Paths,
-  env?: GitEnv
+  env?: GitEnv,
 ): Result<void> {
   const wsPath = paths.workspace(name);
   if (!existsSync(wsPath)) {
@@ -91,7 +99,7 @@ export function removeWorkspace(
   if (!options.force && config.repos.length > 0) {
     return err(
       `Workspace "${name}" has repos. Use --force to remove anyway.`,
-      "WORKSPACE_HAS_REPOS"
+      "WORKSPACE_HAS_REPOS",
     );
   }
 
@@ -115,10 +123,21 @@ export function removeWorkspace(
           const lstat = lstatSync(wtPath);
           if (lstat.isSymbolicLink()) {
             let target: string;
-            try { target = readlinkSync(wtPath); } catch { continue; }
+            try {
+              target = readlinkSync(wtPath);
+            } catch {
+              continue;
+            }
             if (target.startsWith("../../worktrees/")) {
               // Pool symlink
-              const removeResult = removePoolWorktreeReference(name, repo.name, slug, { force: true }, paths, env);
+              const removeResult = removePoolWorktreeReference(
+                name,
+                repo.name,
+                slug,
+                { force: true },
+                paths,
+                env,
+              );
               if (!removeResult.ok) {
                 errors.push(`${repo.name}/${slug}: ${removeResult.error}`);
               }
@@ -147,7 +166,7 @@ export function removeWorkspace(
     if (errors.length > 0) {
       return err(
         `Failed to remove some worktrees:\n${errors.join("\n")}`,
-        "WORKTREE_REMOVE_FAILED"
+        "WORKTREE_REMOVE_FAILED",
       );
     }
   }

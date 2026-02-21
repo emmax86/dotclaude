@@ -17,7 +17,9 @@ function output(result: Result<unknown>, porcelain: boolean, formatFn?: (val: un
       console.log(JSON.stringify({ ok: true, data: result.value }));
     }
   } else {
-    process.stderr.write(JSON.stringify({ ok: false, error: result.error, code: result.code }) + "\n");
+    process.stderr.write(
+      JSON.stringify({ ok: false, error: result.error, code: result.code }) + "\n",
+    );
     process.exit(1);
   }
 }
@@ -29,12 +31,17 @@ function formatWorkspaceList(val: unknown): string {
 
 function formatRepoList(val: unknown): string {
   const list = val as Array<{ name: string; path: string; status: string }>;
-  return list.map((r) => `${r.name}\t${r.path}\t${r.status}`).join("\n") + (list.length ? "\n" : "");
+  return (
+    list.map((r) => `${r.name}\t${r.path}\t${r.status}`).join("\n") + (list.length ? "\n" : "")
+  );
 }
 
 function formatWorktreeList(val: unknown): string {
   const list = val as Array<{ repo: string; slug: string; branch: string; type: string }>;
-  return list.map((w) => `${w.repo}\t${w.slug}\t${w.branch}\t${w.type}`).join("\n") + (list.length ? "\n" : "");
+  return (
+    list.map((w) => `${w.repo}\t${w.slug}\t${w.branch}\t${w.type}`).join("\n") +
+    (list.length ? "\n" : "")
+  );
 }
 
 // ---- Arg parsing ----
@@ -111,7 +118,10 @@ function main() {
   switch (subcmd) {
     case "add": {
       const name = parsed.positional[0];
-      if (!name) { console.error("Usage: dotclaude ws add <name>"); process.exit(1); }
+      if (!name) {
+        console.error("Usage: dotclaude ws add <name>");
+        process.exit(1);
+      }
       output(addWorkspace(name, paths), porcelain);
       break;
     }
@@ -123,7 +133,10 @@ function main() {
 
     case "remove": {
       const name = parsed.positional[0] ?? ctx.workspace;
-      if (!name) { console.error("Usage: dotclaude ws remove <name>"); process.exit(1); }
+      if (!name) {
+        console.error("Usage: dotclaude ws remove <name>");
+        process.exit(1);
+      }
       output(removeWorkspace(name, { force: flag(parsed, "force") }, paths), porcelain);
       break;
     }
@@ -155,7 +168,10 @@ function main() {
 
         case "list": {
           const workspace = repoArgs[0] ?? ctx.workspace;
-          if (!workspace) { console.error("Usage: dotclaude ws repo list [workspace]"); process.exit(1); }
+          if (!workspace) {
+            console.error("Usage: dotclaude ws repo list [workspace]");
+            process.exit(1);
+          }
           output(listRepos(workspace, paths), repoPorcelain, formatRepoList);
           break;
         }
@@ -171,9 +187,13 @@ function main() {
             repoName = repoArgs[0];
           }
           if (!workspace || !repoName) {
-            console.error("Usage: dotclaude ws repo remove [workspace] <name>"); process.exit(1);
+            console.error("Usage: dotclaude ws repo remove [workspace] <name>");
+            process.exit(1);
           }
-          output(removeRepo(workspace, repoName, { force: flag(parsed, "force") }, paths), repoPorcelain);
+          output(
+            removeRepo(workspace, repoName, { force: flag(parsed, "force") }, paths),
+            repoPorcelain,
+          );
           break;
         }
 
@@ -207,11 +227,17 @@ function main() {
             process.exit(1);
           }
           output(
-            addWorktree(workspace, repo, branch, {
-              newBranch: flag(parsed, "new"),
-              from: flagValue(parsed, "from"),
-            }, paths),
-            wtPorcelain
+            addWorktree(
+              workspace,
+              repo,
+              branch,
+              {
+                newBranch: flag(parsed, "new"),
+                from: flagValue(parsed, "from"),
+              },
+              paths,
+            ),
+            wtPorcelain,
           );
           break;
         }
@@ -220,7 +246,8 @@ function main() {
           const workspace = ctx.workspace ?? "";
           const repo = wtArgs[0] ?? ctx.repo;
           if (!workspace || !repo) {
-            console.error("Usage: dotclaude ws worktree list [repo]"); process.exit(1);
+            console.error("Usage: dotclaude ws worktree list [repo]");
+            process.exit(1);
           }
           output(listWorktrees(workspace, repo, paths), wtPorcelain, formatWorktreeList);
           break;
@@ -238,9 +265,13 @@ function main() {
             slug = wtArgs[0];
           }
           if (!workspace || !repo || !slug) {
-            console.error("Usage: dotclaude ws worktree remove [repo] <slug> [--force]"); process.exit(1);
+            console.error("Usage: dotclaude ws worktree remove [repo] <slug> [--force]");
+            process.exit(1);
           }
-          output(removeWorktree(workspace, repo, slug, { force: flag(parsed, "force") }, paths), wtPorcelain);
+          output(
+            removeWorktree(workspace, repo, slug, { force: flag(parsed, "force") }, paths),
+            wtPorcelain,
+          );
           break;
         }
 
@@ -253,14 +284,20 @@ function main() {
 
     case "status": {
       const workspace = parsed.positional[0] ?? ctx.workspace;
-      if (!workspace) { console.error("Usage: dotclaude ws status [workspace]"); process.exit(1); }
+      if (!workspace) {
+        console.error("Usage: dotclaude ws status [workspace]");
+        process.exit(1);
+      }
       output(getStatus(workspace, paths), porcelain);
       break;
     }
 
     case "path": {
       const workspace = parsed.positional[0] ?? ctx.workspace;
-      if (!workspace) { console.error("Usage: dotclaude ws path [workspace]"); process.exit(1); }
+      if (!workspace) {
+        console.error("Usage: dotclaude ws path [workspace]");
+        process.exit(1);
+      }
       if (porcelain) {
         process.stdout.write(paths.workspace(workspace) + "\n");
       } else {

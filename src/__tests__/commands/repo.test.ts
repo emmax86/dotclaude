@@ -68,7 +68,9 @@ describe("repo commands", () => {
     expect(existsSync(paths.repoEntry("customname"))).toBe(true);
     // workspace tree entry also uses the override name
     expect(lstatSync(paths.workspaceTreeEntry("myws", "customname")).isSymbolicLink()).toBe(true);
-    expect(readlinkSync(paths.workspaceTreeEntry("myws", "customname"))).toBe("../../repos/customname");
+    expect(readlinkSync(paths.workspaceTreeEntry("myws", "customname"))).toBe(
+      "../../repos/customname",
+    );
   });
 
   it("add fails if path is not a git repo", () => {
@@ -248,6 +250,8 @@ describe("repo commands", () => {
     expect(existsSync(poolEntry)).toBe(true);
 
     // otherws symlink intact
-    expect(lstatSync(paths.worktreeDir("otherws", "myrepo", "feature-shared")).isSymbolicLink()).toBe(true);
+    expect(
+      lstatSync(paths.worktreeDir("otherws", "myrepo", "feature-shared")).isSymbolicLink(),
+    ).toBe(true);
   });
 });
