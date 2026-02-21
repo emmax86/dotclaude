@@ -4,8 +4,8 @@ import { type Result, ok, err } from "../types";
 import { readPoolConfig, removePoolReference } from "./config";
 import { removeWorktree as gitRemoveWorktree, type GitEnv } from "./git";
 
-const POOL_SYMLINK_PREFIX = "../../worktrees/";
-const DEFAULT_BRANCH_SYMLINK_PREFIX = "../trees/";
+const POOL_SYMLINK_PREFIX = "../../../worktrees/";
+const DEFAULT_BRANCH_SYMLINK_PREFIX = "../../../repos/";
 
 /**
  * Classify a worktree entry path.

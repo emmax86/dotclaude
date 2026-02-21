@@ -166,9 +166,9 @@ describe("E2E: repo commands", () => {
   it("ws repo add creates global repos/ symlink and default branch symlink", () => {
     runCLI(["ws", "repo", "add", "myws", repoPath], { root });
     expect(lstatSync(join(root, "repos", "myrepo")).isSymbolicLink()).toBe(true);
-    const defaultLink = join(root, "myws", "myrepo", "main");
+    const defaultLink = join(root, "myws", "trees", "myrepo", "main");
     expect(lstatSync(defaultLink).isSymbolicLink()).toBe(true);
-    expect(readlinkSync(defaultLink)).toBe("../trees/myrepo");
+    expect(readlinkSync(defaultLink)).toBe("../../../repos/myrepo");
   });
 
   it("ws repo add --name overrides derived name", () => {
@@ -249,9 +249,9 @@ describe("E2E: worktree commands", () => {
     expect(data.type).toBe("worktree");
 
     // Workspace entry is a symlink
-    const wsLink = join(root, "myws", "myrepo", "feature-x");
+    const wsLink = join(root, "myws", "trees", "myrepo", "feature-x");
     expect(lstatSync(wsLink).isSymbolicLink()).toBe(true);
-    expect(readlinkSync(wsLink)).toBe("../../worktrees/myrepo/feature-x");
+    expect(readlinkSync(wsLink)).toBe("../../../worktrees/myrepo/feature-x");
 
     // Pool entry is a real directory
     const poolEntry = join(root, "worktrees", "myrepo", "feature-x");
@@ -326,7 +326,7 @@ describe("E2E: worktree commands", () => {
     // Symlink gone
     let gone = false;
     try {
-      lstatSync(join(root, "myws", "myrepo", "feature-x"));
+      lstatSync(join(root, "myws", "trees", "myrepo", "feature-x"));
     } catch {
       gone = true;
     }
@@ -376,11 +376,11 @@ describe("E2E: worktree commands", () => {
     expect(r.exitCode).toBe(0);
 
     // Both symlinks point to same pool entry
-    expect(readlinkSync(join(root, "myws", "myrepo", "feature-shared"))).toBe(
-      "../../worktrees/myrepo/feature-shared",
+    expect(readlinkSync(join(root, "myws", "trees", "myrepo", "feature-shared"))).toBe(
+      "../../../worktrees/myrepo/feature-shared",
     );
-    expect(readlinkSync(join(root, "otherws", "myrepo", "feature-shared"))).toBe(
-      "../../worktrees/myrepo/feature-shared",
+    expect(readlinkSync(join(root, "otherws", "trees", "myrepo", "feature-shared"))).toBe(
+      "../../../worktrees/myrepo/feature-shared",
     );
 
     // worktrees.json lists both
@@ -396,7 +396,7 @@ describe("E2E: worktree commands", () => {
     expect(existsSync(join(root, "worktrees", "myrepo", "feature-shared"))).toBe(true);
     let ws1Gone = false;
     try {
-      lstatSync(join(root, "myws", "myrepo", "feature-shared"));
+      lstatSync(join(root, "myws", "trees", "myrepo", "feature-shared"));
     } catch {
       ws1Gone = true;
     }
@@ -440,7 +440,7 @@ describe("E2E: context inference via cwd", () => {
   it("workspace and repo inferred from cwd inside repo dir", () => {
     const r = runCLI(["ws", "worktree", "list"], {
       root,
-      cwd: join(root, "myws", "myrepo"),
+      cwd: join(root, "myws", "trees", "myrepo"),
     });
     expect(r.exitCode).toBe(0);
     const data = r.json?.data as Array<{ slug: string }>;
@@ -448,9 +448,9 @@ describe("E2E: context inference via cwd", () => {
   });
 
   it("workspace inferred from cwd inside pool worktree (via symlink)", () => {
-    // The symlink at {ws}/{repo}/{slug} points into the pool.
+    // The symlink at {ws}/trees/{repo}/{slug} points into the pool.
     // Logical cwd traversal should find workspace.json in myws.
-    const wtLink = join(root, "myws", "myrepo", "feature-ctx");
+    const wtLink = join(root, "myws", "trees", "myrepo", "feature-ctx");
     const r = runCLI(["ws", "repo", "list"], { root, cwd: wtLink });
     expect(r.exitCode).toBe(0);
     const data = r.json?.data as Array<{ name: string }>;

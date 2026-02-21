@@ -68,14 +68,14 @@ describe("context inference", () => {
     expect(ctx.repo).toBeUndefined();
   });
 
-  it("cwd inside {workspace}/trees/{repo}/ → workspace only (logical path found)", () => {
-    // trees/myrepo is a symlink. With logical-walk-first, we find {workspace}/workspace.json
-    // before following any symlinks. The path segment "trees" is not a registered repo,
-    // so only the workspace context is returned.
+  it("cwd inside {workspace}/trees/{repo}/ → workspace + repo", () => {
+    // trees/{repo}/ is the repo directory. context inference skips the "trees" segment
+    // and correctly identifies the repo.
     const treesRepoDir = join(paths.workspace("myws"), "trees", "myrepo");
     const ctx = inferContext(treesRepoDir, wsRoot);
     expect(ctx.workspace).toBe("myws");
-    expect(ctx.repo).toBeUndefined();
+    expect(ctx.repo).toBe("myrepo");
+    expect(ctx.worktree).toBeUndefined();
   });
 
   it("infers correctly when cwd contains unresolved symlink prefix (macOS /tmp regression)", () => {
@@ -104,8 +104,8 @@ describe("context inference", () => {
   });
 
   it("cwd via workspace symlink into pool worktree infers full context", () => {
-    // The pool symlink is at {ws}/{repo}/{slug} → ../../worktrees/{repo}/{slug}
-    // Logical walk from {ws}/{repo}/{slug}/src/lib finds workspace.json at {ws}/
+    // The pool symlink is at {ws}/trees/{repo}/{slug} → ../../../worktrees/{repo}/{slug}
+    // Logical walk from {ws}/trees/{repo}/{slug}/src/lib finds workspace.json at {ws}/
     // and correctly extracts repo + worktree without resolving the symlink.
     const deepPath = join(paths.worktreeDir("myws", "myrepo", "feature-ctx"), "src", "lib");
     const ctx = inferContext(deepPath, wsRoot);

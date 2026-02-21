@@ -76,9 +76,9 @@ export function addWorktree(
     poolEntryCreated = true;
   }
 
-  // Create workspace symlink → ../../worktrees/{repo}/{slug}
+  // Create workspace symlink → ../../../worktrees/{repo}/{slug}
   try {
-    symlinkSync(`../../worktrees/${repo}/${slug}`, wtPath);
+    symlinkSync(`../../../worktrees/${repo}/${slug}`, wtPath);
   } catch (e) {
     // Rollback pool entry if we created it
     if (poolEntryCreated) {

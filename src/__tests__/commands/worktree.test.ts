@@ -45,7 +45,7 @@ describe("worktree commands", () => {
 
     // Symlink target points to pool
     const target = readlinkSync(wtPath);
-    expect(target).toBe("../../worktrees/myrepo/feature-x");
+    expect(target).toBe("../../../worktrees/myrepo/feature-x");
 
     // Pool entry is a real directory
     const poolEntry = paths.worktreePoolEntry("myrepo", "feature-x");
@@ -146,8 +146,8 @@ describe("worktree commands", () => {
     // Both workspace entries are symlinks pointing to same pool
     const ws1Link = readlinkSync(paths.worktreeDir("myws", "myrepo", "feature-shared"));
     const ws2Link = readlinkSync(paths.worktreeDir("otherws", "myrepo", "feature-shared"));
-    expect(ws1Link).toBe("../../worktrees/myrepo/feature-shared");
-    expect(ws2Link).toBe("../../worktrees/myrepo/feature-shared");
+    expect(ws1Link).toBe("../../../worktrees/myrepo/feature-shared");
+    expect(ws2Link).toBe("../../../worktrees/myrepo/feature-shared");
 
     // worktrees.json lists both workspaces
     const poolRaw = readFileSync(paths.worktreePoolConfig, "utf-8");
@@ -201,8 +201,8 @@ describe("worktree commands", () => {
   });
 
   it("remove refuses default branch symlink even when dangling", () => {
-    // Break the two-hop chain by removing the workspace trees entry
-    rmSync(paths.workspaceTreeEntry("myws", "myrepo"));
+    // Make default branch symlink dangle by removing the global repo entry
+    rmSync(paths.repoEntry("myrepo"));
     const result = removeWorktree("myws", "myrepo", "main", {}, paths, GIT_ENV);
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -211,11 +211,9 @@ describe("worktree commands", () => {
   });
 
   it("list includes dangling default branch symlink as linked type", () => {
-    // Break the two-hop chain — main symlink is now dangling
-    const treeEntry = paths.workspaceTreeEntry("myws", "myrepo");
+    // Make default branch symlink dangle by removing the global repo entry
     try {
-      lstatSync(treeEntry);
-      rmSync(treeEntry);
+      rmSync(paths.repoEntry("myrepo"));
     } catch {
       /* already gone from previous test */
     }

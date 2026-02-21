@@ -23,17 +23,17 @@ describe("classifyWorktreeEntry", () => {
     cleanup(tempDir);
   });
 
-  it("returns 'pool' for pool symlink (../../worktrees/...)", () => {
+  it("returns 'pool' for pool symlink (../../../worktrees/...)", () => {
     const target = join(tempDir, "target");
     mkdirSync(target);
     const link = join(tempDir, "link");
-    symlinkSync("../../worktrees/myrepo/feature-x", link);
+    symlinkSync("../../../worktrees/myrepo/feature-x", link);
     expect(classifyWorktreeEntry(link)).toBe("pool");
   });
 
-  it("returns 'linked' for default-branch symlink (../trees/...)", () => {
+  it("returns 'linked' for default-branch symlink (../../../repos/...)", () => {
     const link = join(tempDir, "link");
-    symlinkSync("../trees/myrepo", link);
+    symlinkSync("../../../repos/myrepo", link);
     expect(classifyWorktreeEntry(link)).toBe("linked");
   });
 

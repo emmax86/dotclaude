@@ -52,7 +52,7 @@ describe("lifecycle integration", () => {
     const stat = lstatSync(defaultBranchPath);
     expect(stat.isSymbolicLink()).toBe(true);
 
-    // full chain: {workspace}/myrepo/main -> ../trees/myrepo -> ../../repos/myrepo -> actual path
+    // full chain: {workspace}/trees/myrepo/main -> ../../../repos/myrepo -> actual path
     expect(realpathSync(defaultBranchPath)).toBe(realpathSync(repoPath));
   });
 
@@ -77,7 +77,7 @@ describe("lifecycle integration", () => {
     // Workspace entry is a symlink pointing to the pool
     const wsEntry = paths.worktreeDir("myws", "myrepo", "feature-lifecycle");
     expect(lstatSync(wsEntry).isSymbolicLink()).toBe(true);
-    expect(readlinkSync(wsEntry)).toBe("../../worktrees/myrepo/feature-lifecycle");
+    expect(readlinkSync(wsEntry)).toBe("../../../worktrees/myrepo/feature-lifecycle");
 
     // Pool entry is a real directory
     const poolEntry = paths.worktreePoolEntry("myrepo", "feature-lifecycle");
@@ -137,8 +137,8 @@ describe("lifecycle integration", () => {
     const ws2Link = paths.worktreeDir("otherws", "myrepo", "feature-pool-share");
     expect(lstatSync(ws1Link).isSymbolicLink()).toBe(true);
     expect(lstatSync(ws2Link).isSymbolicLink()).toBe(true);
-    expect(readlinkSync(ws1Link)).toBe("../../worktrees/myrepo/feature-pool-share");
-    expect(readlinkSync(ws2Link)).toBe("../../worktrees/myrepo/feature-pool-share");
+    expect(readlinkSync(ws1Link)).toBe("../../../worktrees/myrepo/feature-pool-share");
+    expect(readlinkSync(ws2Link)).toBe("../../../worktrees/myrepo/feature-pool-share");
 
     // Remove from ws1 — pool should persist for ws2
     const rm1 = removeWorktree("myws", "myrepo", "feature-pool-share", {}, paths, GIT_ENV);

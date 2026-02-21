@@ -1,12 +1,4 @@
-import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readdirSync,
-  realpathSync,
-  rmSync,
-  symlinkSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readdirSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { type Paths } from "../constants";
 import { type Result, ok, err, type RepoEntry } from "../types";
@@ -76,36 +68,19 @@ export function addRepo(
     symlinkSync(absPath, treePath);
   }
 
-  // Create {workspace}/{repo-name}/ directory
+  // Create {workspace}/trees/{repo-name}/ directory
   const repoDirPath = paths.repoDir(workspace, name);
-  const wsTreeEntry = paths.workspaceTreeEntry(workspace, name);
   let repoDirCreated = false;
-  let wsTreeCreated = false;
 
   function cleanup() {
     if (repoDirCreated && existsSync(repoDirPath)) {
       rmSync(repoDirPath, { recursive: true, force: true });
-    }
-    if (wsTreeCreated) {
-      try {
-        lstatSync(wsTreeEntry);
-        rmSync(wsTreeEntry);
-      } catch {
-        /* already gone */
-      }
     }
   }
 
   if (!existsSync(repoDirPath)) {
     mkdirSync(repoDirPath, { recursive: true });
     repoDirCreated = true;
-  }
-
-  // Create {workspace}/trees/ and workspace-local {workspace}/trees/{name} -> ../../repos/{name}
-  mkdirSync(paths.workspaceTrees(workspace), { recursive: true });
-  if (!existsSync(wsTreeEntry)) {
-    symlinkSync(`../../repos/${name}`, wsTreeEntry);
-    wsTreeCreated = true;
   }
 
   // Detect default branch and create symlink
@@ -118,8 +93,8 @@ export function addRepo(
   const slug = toSlug(branchResult.value);
   const defaultBranchSlugPath = paths.worktreeDir(workspace, name, slug);
   if (!existsSync(defaultBranchSlugPath)) {
-    // Symlink: {workspace}/{repo}/{slug} -> ../trees/{repo}
-    symlinkSync(`../trees/${name}`, defaultBranchSlugPath);
+    // Symlink: {workspace}/trees/{repo}/{slug} -> ../../../repos/{repo}
+    symlinkSync(`../../../repos/${name}`, defaultBranchSlugPath);
   }
 
   // Add to workspace.json
@@ -234,15 +209,6 @@ export function removeRepo(
     }
 
     rmSync(repoDir, { recursive: true, force: true });
-  }
-
-  // Remove workspace-local tree entry
-  const wsTreeEntry = paths.workspaceTreeEntry(workspace, name);
-  try {
-    lstatSync(wsTreeEntry);
-    rmSync(wsTreeEntry);
-  } catch {
-    /* not present, skip */
   }
 
   // Remove from workspace.json (global repo entry stays)

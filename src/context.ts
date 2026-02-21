@@ -79,7 +79,10 @@ export function inferContext(cwd: string, workspacesRoot: string): Context {
   const segments = relToCwd.split(sep).filter(Boolean);
   if (segments.length === 0) return context;
 
-  const repoSegment = segments[0];
+  // Repos live under trees/ within the workspace directory
+  const offset = segments[0] === "trees" ? 1 : 0;
+  const repoSegment = segments[offset];
+  if (!repoSegment) return context;
 
   // Validate repo segment against workspace.json
   const configResult = readConfig(join(workspaceDir, "workspace.json"));
@@ -90,8 +93,8 @@ export function inferContext(cwd: string, workspacesRoot: string): Context {
 
   context.repo = repoSegment;
 
-  if (segments.length >= 2) {
-    context.worktree = segments[1];
+  if (segments.length >= offset + 2) {
+    context.worktree = segments[offset + 1];
   }
 
   return context;
