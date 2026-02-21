@@ -35,8 +35,13 @@ export function readConfig(configPath: string): Result<WorkspaceConfig> {
   return ok(parsed as WorkspaceConfig);
 }
 
-export function writeConfig(configPath: string, config: WorkspaceConfig): void {
-  writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
+export function writeConfig(configPath: string, config: WorkspaceConfig): Result<void> {
+  try {
+    writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
+    return ok(undefined);
+  } catch (e) {
+    return err(String(e), "CONFIG_WRITE_FAILED");
+  }
 }
 
 export function addRepoToConfig(configPath: string, repo: RepoEntry): Result<void> {
@@ -50,8 +55,7 @@ export function addRepoToConfig(configPath: string, repo: RepoEntry): Result<voi
   } else {
     config.repos.push(repo);
   }
-  writeConfig(configPath, config);
-  return ok(undefined);
+  return writeConfig(configPath, config);
 }
 
 export function removeRepoFromConfig(configPath: string, name: string): Result<void> {
@@ -60,8 +64,7 @@ export function removeRepoFromConfig(configPath: string, name: string): Result<v
 
   const config = result.value;
   config.repos = config.repos.filter((r) => r.name !== name);
-  writeConfig(configPath, config);
-  return ok(undefined);
+  return writeConfig(configPath, config);
 }
 
 export function readPoolConfig(path: string): Result<WorktreePool> {
@@ -86,8 +89,13 @@ export function readPoolConfig(path: string): Result<WorktreePool> {
   return ok(parsed as WorktreePool);
 }
 
-export function writePoolConfig(path: string, pool: WorktreePool): void {
-  writeFileSync(path, JSON.stringify(pool, null, 2) + "\n");
+export function writePoolConfig(path: string, pool: WorktreePool): Result<void> {
+  try {
+    writeFileSync(path, JSON.stringify(pool, null, 2) + "\n");
+    return ok(undefined);
+  } catch (e) {
+    return err(String(e), "POOL_CONFIG_WRITE_FAILED");
+  }
 }
 
 export function addPoolReference(
@@ -105,8 +113,7 @@ export function addPoolReference(
   if (!pool[repo][slug].includes(workspace)) {
     pool[repo][slug].push(workspace);
   }
-  writePoolConfig(path, pool);
-  return ok(undefined);
+  return writePoolConfig(path, pool);
 }
 
 export function removePoolReference(
@@ -139,7 +146,8 @@ export function removePoolReference(
     }
   }
 
-  writePoolConfig(path, pool);
+  const writeResult = writePoolConfig(path, pool);
+  if (!writeResult.ok) return writeResult;
   return ok({ remaining });
 }
 

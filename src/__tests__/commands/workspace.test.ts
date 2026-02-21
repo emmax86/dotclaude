@@ -172,4 +172,14 @@ describe("workspace commands", () => {
       true,
     );
   });
+
+  it("listWorkspaces returns empty array when root does not exist", () => {
+    // paths.root doesn't exist (no workspaces created yet)
+    const freshPaths = createPaths(join(tempDir, "nonexistent-root"));
+    const result = listWorkspaces(freshPaths);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toEqual([]);
+    }
+  });
 });

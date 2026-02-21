@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { join } from "node:path";
 import {
+  chmodSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -212,11 +213,9 @@ describe("worktree commands", () => {
   it("list includes dangling default branch symlink as linked type", () => {
     // Break the two-hop chain — main symlink is now dangling
     const treeEntry = paths.workspaceTreeEntry("myws", "myrepo");
-    let removed = false;
     try {
       lstatSync(treeEntry);
       rmSync(treeEntry);
-      removed = true;
     } catch {
       /* already gone from previous test */
     }
@@ -288,5 +287,66 @@ describe("worktree commands", () => {
     // worktrees.json empty for myrepo
     const pool2 = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
     expect(pool2.myrepo).toBeUndefined();
+  });
+
+  it("addWorktree rollback: removes symlink and pool entry when addPoolReference fails", () => {
+    // Write an array to worktrees.json so readPoolConfig returns POOL_CONFIG_INVALID
+    writeFileSync(paths.worktreePoolConfig, JSON.stringify([1, 2, 3]));
+
+    const result = addWorktree(
+      "myws",
+      "myrepo",
+      "feature/pool-fail",
+      { newBranch: true },
+      paths,
+      GIT_ENV,
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("POOL_CONFIG_INVALID");
+    }
+
+    // Workspace symlink should have been rolled back
+    let symlinkGone = false;
+    try {
+      lstatSync(paths.worktreeDir("myws", "myrepo", "feature-pool-fail"));
+    } catch {
+      symlinkGone = true;
+    }
+    expect(symlinkGone).toBe(true);
+
+    // Pool entry should have been rolled back
+    expect(existsSync(paths.worktreePoolEntry("myrepo", "feature-pool-fail"))).toBe(false);
+  });
+
+  it("addWorktree rollback: removes pool entry when symlink creation fails", () => {
+    // Make the repo dir read-only so symlinkSync fails
+    const repoDir = paths.repoDir("myws", "myrepo");
+    chmodSync(repoDir, 0o444);
+
+    const result = addWorktree("myws", "myrepo", "feature/ro", { newBranch: true }, paths, GIT_ENV);
+    chmodSync(repoDir, 0o755); // restore
+
+    expect(result.ok).toBe(false);
+    // Pool entry should have been rolled back
+    const poolEntry = paths.worktreePoolEntry("myrepo", "feature-ro");
+    expect(existsSync(poolEntry)).toBe(false);
+  });
+
+  it("addWorktree fails when git worktree add fails", () => {
+    // Use a non-existent branch without --new
+    const result = addWorktree("myws", "myrepo", "definitely-nonexistent", {}, paths, GIT_ENV);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("GIT_WORKTREE_ADD_ERROR");
+    }
+  });
+
+  it("remove returns WORKTREE_NOT_FOUND for unknown slug", () => {
+    const result = removeWorktree("myws", "myrepo", "no-such-slug", {}, paths, GIT_ENV);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("WORKTREE_NOT_FOUND");
+    }
   });
 });

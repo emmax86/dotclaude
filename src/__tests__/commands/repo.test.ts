@@ -1,6 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { join } from "node:path";
-import { existsSync, lstatSync, mkdirSync, readlinkSync, rmSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readlinkSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "../helpers";
 import { createPaths } from "../../constants";
 import { addWorkspace } from "../../commands/workspace";
@@ -272,5 +280,92 @@ describe("repo commands", () => {
     expect(
       lstatSync(paths.worktreeDir("otherws", "myrepo", "feature-shared")).isSymbolicLink(),
     ).toBe(true);
+  });
+
+  it("addRepo rollback: cleans up repoDir and wsTreeEntry when getDefaultBranch fails", () => {
+    // Create a repo and put HEAD in detached state so symbolic-ref fails
+    const detachedRepoPath = join(tempDir, "detached-repo");
+    mkdirSync(detachedRepoPath, { recursive: true });
+    const env = {
+      ...process.env,
+      GIT_CONFIG_NOSYSTEM: "1",
+      HOME: tempDir,
+      GIT_AUTHOR_NAME: "Test",
+      GIT_AUTHOR_EMAIL: "test@test.com",
+      GIT_COMMITTER_NAME: "Test",
+      GIT_COMMITTER_EMAIL: "test@test.com",
+    };
+    Bun.spawnSync(["git", "init", "-b", "main", detachedRepoPath], { env });
+    Bun.spawnSync(["git", "-C", detachedRepoPath, "config", "user.email", "test@test.com"], {
+      env,
+    });
+    Bun.spawnSync(["git", "-C", detachedRepoPath, "config", "user.name", "Test"], { env });
+    writeFileSync(join(detachedRepoPath, "README"), "x");
+    Bun.spawnSync(["git", "-C", detachedRepoPath, "add", "."], { env });
+    Bun.spawnSync(["git", "-C", detachedRepoPath, "commit", "-m", "init"], { env });
+    // Detach HEAD — symbolic-ref will now fail
+    const shaResult = Bun.spawnSync(["git", "-C", detachedRepoPath, "rev-parse", "HEAD"], { env });
+    const sha = new TextDecoder().decode(shaResult.stdout).trim();
+    writeFileSync(join(detachedRepoPath, ".git", "HEAD"), sha + "\n");
+
+    const result = addRepo("myws", detachedRepoPath, undefined, paths, GIT_ENV);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("GIT_DEFAULT_BRANCH_ERROR");
+    }
+
+    // Verify cleanup: repo dir should not exist
+    expect(existsSync(paths.repoDir("myws", "detached-repo"))).toBe(false);
+    // Workspace trees entry should not exist
+    let wsTreeGone = false;
+    try {
+      lstatSync(paths.workspaceTreeEntry("myws", "detached-repo"));
+    } catch {
+      wsTreeGone = true;
+    }
+    expect(wsTreeGone).toBe(true);
+  });
+
+  it("addRepo rollback: cleans up on config write failure", () => {
+    // Write invalid JSON to workspace.json so addRepoToConfig fails
+    writeFileSync(paths.workspaceConfig("myws"), "not-valid-json");
+
+    const result = addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    expect(result.ok).toBe(false);
+
+    // Cleanup should have removed the repo dir
+    expect(existsSync(paths.repoDir("myws", "myrepo"))).toBe(false);
+    // Workspace trees entry also removed
+    let wsTreeGone = false;
+    try {
+      lstatSync(paths.workspaceTreeEntry("myws", "myrepo"));
+    } catch {
+      wsTreeGone = true;
+    }
+    expect(wsTreeGone).toBe(true);
+  });
+
+  it("addRepo rejects empty name", () => {
+    const result = addRepo("myws", repoPath, "", paths, GIT_ENV);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("INVALID_NAME");
+    }
+  });
+
+  it("addRepo rejects name with path separator", () => {
+    const result = addRepo("myws", repoPath, "a/b", paths, GIT_ENV);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("INVALID_NAME");
+    }
+  });
+
+  it("addRepo rejects name with double-dot traversal", () => {
+    const result = addRepo("myws", repoPath, "a..b", paths, GIT_ENV);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("INVALID_NAME");
+    }
   });
 });

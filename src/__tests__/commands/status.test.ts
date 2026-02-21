@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { join } from "node:path";
 import { rmSync } from "node:fs";
 import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "../helpers";
@@ -13,7 +13,7 @@ describe("status command", () => {
   let repoPath: string;
   let paths: ReturnType<typeof createPaths>;
 
-  beforeAll(() => {
+  beforeEach(() => {
     tempDir = createTestDir();
     repoPath = createTestGitRepo(tempDir, "myrepo");
     paths = createPaths(join(tempDir, "workspaces"));
@@ -22,7 +22,7 @@ describe("status command", () => {
     addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
   });
 
-  afterAll(() => {
+  afterEach(() => {
     cleanup(tempDir);
   });
 
@@ -64,6 +64,24 @@ describe("status command", () => {
     if (result.ok) {
       const repo = result.value.repos.find((r) => r.name === "myrepo");
       expect(repo?.status).toBe("dangling");
+    }
+  });
+
+  it("returns WORKSPACE_NOT_FOUND for non-existent workspace", () => {
+    const result = getStatus("ghost", paths);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("WORKSPACE_NOT_FOUND");
+    }
+  });
+
+  it("returns CONFIG_INVALID for corrupted workspace config", () => {
+    const { writeFileSync } = require("node:fs");
+    writeFileSync(paths.workspaceConfig("myws"), "not-json");
+    const result = getStatus("myws", paths);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("CONFIG_INVALID");
     }
   });
 });

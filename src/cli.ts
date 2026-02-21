@@ -5,7 +5,7 @@ import { addWorkspace, listWorkspaces, removeWorkspace } from "./commands/worksp
 import { addRepo, listRepos, removeRepo } from "./commands/repo";
 import { addWorktree, listWorktrees, removeWorktree } from "./commands/worktree";
 import { getStatus } from "./commands/status";
-import { type Result } from "./types";
+import { type Result, ok } from "./types";
 
 // ---- Output helpers ----
 
@@ -144,7 +144,6 @@ function main() {
     case "repo": {
       const repoSubcmd = parsed.positional[0];
       const repoArgs = parsed.positional.slice(1);
-      const repoPorcelain = flag(parsed, "porcelain");
 
       switch (repoSubcmd) {
         case "add": {
@@ -162,7 +161,7 @@ function main() {
             console.error("Usage: dotclaude ws repo add [workspace] <path> [--name override]");
             process.exit(1);
           }
-          output(addRepo(workspace, repoPath, flagValue(parsed, "name"), paths), repoPorcelain);
+          output(addRepo(workspace, repoPath, flagValue(parsed, "name"), paths), porcelain);
           break;
         }
 
@@ -172,7 +171,7 @@ function main() {
             console.error("Usage: dotclaude ws repo list [workspace]");
             process.exit(1);
           }
-          output(listRepos(workspace, paths), repoPorcelain, formatRepoList);
+          output(listRepos(workspace, paths), porcelain, formatRepoList);
           break;
         }
 
@@ -192,7 +191,7 @@ function main() {
           }
           output(
             removeRepo(workspace, repoName, { force: flag(parsed, "force") }, paths),
-            repoPorcelain,
+            porcelain,
           );
           break;
         }
@@ -207,7 +206,6 @@ function main() {
     case "worktree": {
       const wtSubcmd = parsed.positional[0];
       const wtArgs = parsed.positional.slice(1);
-      const wtPorcelain = flag(parsed, "porcelain");
 
       switch (wtSubcmd) {
         case "add": {
@@ -237,7 +235,7 @@ function main() {
               },
               paths,
             ),
-            wtPorcelain,
+            porcelain,
           );
           break;
         }
@@ -249,7 +247,7 @@ function main() {
             console.error("Usage: dotclaude ws worktree list [repo]");
             process.exit(1);
           }
-          output(listWorktrees(workspace, repo, paths), wtPorcelain, formatWorktreeList);
+          output(listWorktrees(workspace, repo, paths), porcelain, formatWorktreeList);
           break;
         }
 
@@ -270,7 +268,7 @@ function main() {
           }
           output(
             removeWorktree(workspace, repo, slug, { force: flag(parsed, "force") }, paths),
-            wtPorcelain,
+            porcelain,
           );
           break;
         }
@@ -298,11 +296,10 @@ function main() {
         console.error("Usage: dotclaude ws path [workspace]");
         process.exit(1);
       }
-      if (porcelain) {
-        process.stdout.write(paths.workspace(workspace) + "\n");
-      } else {
-        console.log(JSON.stringify({ ok: true, data: { path: paths.workspace(workspace) } }));
-      }
+      output(ok({ path: paths.workspace(workspace) }), porcelain, (val) => {
+        const { path } = val as { path: string };
+        return path + "\n";
+      });
       break;
     }
 

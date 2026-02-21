@@ -17,6 +17,11 @@
       "name": "workspace-status",
       "description": "Show status overview for the current workspace",
       "file": "commands/workspace-status.md"
+    },
+    {
+      "name": "repo",
+      "description": "Manage repos registered in a workspace",
+      "file": "commands/repo.md"
     }
   ]
 }

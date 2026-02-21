@@ -1,19 +1,14 @@
-import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readdirSync,
-  readlinkSync,
-  rmSync,
-  statSync,
-} from "node:fs";
-import { realpathSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import { type Paths } from "../constants";
 import { type Result, ok, err, type WorkspaceConfig } from "../types";
 import { writeConfig, readConfig } from "../lib/config";
 import { generateVSCodeWorkspace } from "../lib/vscode";
 import { removeWorktree, type GitEnv } from "../lib/git";
-import { removePoolWorktreeReference } from "./worktree";
+import {
+  classifyWorktreeEntry,
+  resolveRepoPath,
+  removePoolWorktreeReference,
+} from "../lib/worktree-utils";
 
 const RESERVED_NAMES = new Set(["repos", "worktrees"]);
 
@@ -48,9 +43,11 @@ export function addWorkspace(name: string, paths: Paths): Result<WorkspaceInfo> 
   mkdirSync(paths.workspaceDotClaude(name), { recursive: true });
 
   const config: WorkspaceConfig = { name, repos: [] };
-  writeConfig(paths.workspaceConfig(name), config);
+  const writeResult = writeConfig(paths.workspaceConfig(name), config);
+  if (!writeResult.ok) return writeResult;
 
-  generateVSCodeWorkspace(name, paths);
+  const vscodeResult = generateVSCodeWorkspace(name, paths);
+  if (!vscodeResult.ok) return vscodeResult;
 
   return ok({ name, path: wsPath });
 }
@@ -64,7 +61,7 @@ export function listWorkspaces(paths: Paths): Result<WorkspaceInfo[]> {
   const workspaces: WorkspaceInfo[] = [];
 
   for (const entry of entries) {
-    if (entry === "repos" || entry === "worktrees") continue;
+    if (RESERVED_NAMES.has(entry)) continue;
     const wsPath = paths.workspace(entry);
     try {
       const stat = statSync(wsPath);
@@ -122,47 +119,28 @@ export function removeWorkspace(
 
       for (const slug of entries) {
         const wtPath = paths.worktreeDir(name, repo.name, slug);
-        try {
-          const lstat = lstatSync(wtPath);
-          if (lstat.isSymbolicLink()) {
-            let target: string;
-            try {
-              target = readlinkSync(wtPath);
-            } catch {
-              continue;
-            }
-            if (target.startsWith("../../worktrees/")) {
-              // Pool symlink
-              const removeResult = removePoolWorktreeReference(
-                name,
-                repo.name,
-                slug,
-                { force: true },
-                paths,
-                env,
-              );
-              if (!removeResult.ok) {
-                errors.push(`${repo.name}/${slug}: ${removeResult.error}`);
-              }
-            }
-            // ../trees/ links: skip (default branch, cleaned by rmSync(wsPath))
-          } else if (lstat.isDirectory()) {
-            // Legacy real worktree
-            const treePath = paths.repoEntry(repo.name);
-            let realRepoPath: string;
-            try {
-              realRepoPath = realpathSync(treePath);
-            } catch {
-              continue; // dangling — skip
-            }
-            const removeResult = removeWorktree(realRepoPath, wtPath, true, env);
-            if (!removeResult.ok) {
-              errors.push(`${repo.name}/${slug}: ${removeResult.error}`);
-            }
+        const kind = classifyWorktreeEntry(wtPath);
+        if (kind === "pool") {
+          const removeResult = removePoolWorktreeReference(
+            name,
+            repo.name,
+            slug,
+            { force: true },
+            paths,
+            env,
+          );
+          if (!removeResult.ok) {
+            errors.push(`${repo.name}/${slug}: ${removeResult.error}`);
           }
-        } catch {
-          // entry gone, skip
+        } else if (kind === "legacy") {
+          const repoPathResult = resolveRepoPath(repo.name, paths);
+          if (!repoPathResult.ok) continue; // dangling — skip
+          const removeResult = removeWorktree(repoPathResult.value, wtPath, true, env);
+          if (!removeResult.ok) {
+            errors.push(`${repo.name}/${slug}: ${removeResult.error}`);
+          }
         }
+        // null or linked: skip
       }
     }
 

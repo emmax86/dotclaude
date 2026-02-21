@@ -1,9 +1,8 @@
 import { type Paths } from "../constants";
-import { type Result, ok, err } from "../types";
+import { type Result, ok, err, type WorktreeEntry } from "../types";
 import { readConfig } from "../lib/config";
 import { listRepos, type RepoInfo } from "./repo";
 import { listWorktrees } from "./worktree";
-import { type WorktreeEntry } from "../types";
 
 export interface RepoStatus extends RepoInfo {
   worktrees: WorktreeEntry[];
@@ -19,7 +18,10 @@ export function getStatus(workspace: string, paths: Paths): Result<WorkspaceStat
   const wsPath = paths.workspace(workspace);
   const configResult = readConfig(paths.workspaceConfig(workspace));
   if (!configResult.ok) {
-    return err(`Workspace "${workspace}" not found`, "WORKSPACE_NOT_FOUND");
+    if (configResult.code === "CONFIG_NOT_FOUND") {
+      return err(`Workspace "${workspace}" not found`, "WORKSPACE_NOT_FOUND");
+    }
+    return configResult;
   }
 
   const reposResult = listRepos(workspace, paths);

@@ -6,7 +6,10 @@ import { readConfig } from "./config";
 export function generateVSCodeWorkspace(workspace: string, paths: Paths): Result<void> {
   const configResult = readConfig(paths.workspaceConfig(workspace));
   if (!configResult.ok) {
-    return err(`Workspace "${workspace}" not found`, "WORKSPACE_NOT_FOUND");
+    if (configResult.code === "CONFIG_NOT_FOUND") {
+      return err(`Workspace "${workspace}" not found`, "WORKSPACE_NOT_FOUND");
+    }
+    return configResult;
   }
 
   const { repos } = configResult.value;

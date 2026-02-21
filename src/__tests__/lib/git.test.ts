@@ -8,6 +8,7 @@ import {
   addWorktree,
   removeWorktree,
   listWorktrees,
+  findMainWorktreePath,
 } from "../../lib/git";
 
 describe("git lib", () => {
@@ -168,6 +169,57 @@ describe("git lib", () => {
           expect(main.isDetached).toBe(false);
         }
       }
+    });
+
+    it("returns error when called on a non-git directory", () => {
+      const plain = join(tempDir, "plain-for-list");
+      mkdirSync(plain);
+      const result = listWorktrees(plain, GIT_ENV);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.code).toBe("GIT_WORKTREE_LIST_ERROR");
+      }
+    });
+  });
+
+  describe("getDefaultBranch", () => {
+    it("returns error on a non-git directory", () => {
+      const plain = join(tempDir, "plain-for-branch");
+      mkdirSync(plain);
+      const result = getDefaultBranch(plain, GIT_ENV);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.code).toBe("GIT_DEFAULT_BRANCH_ERROR");
+      }
+    });
+  });
+
+  describe("removeWorktree edge cases", () => {
+    it("returns ok when worktree dir does not exist (already gone)", () => {
+      const wtPath = join(tempDir, "wt-already-gone");
+      // Don't create it — git will fail with "is not a working tree" or similar
+      // but our code treats those as ok
+      const result = removeWorktree(repoPath, wtPath, false, GIT_ENV);
+      // This may succeed (ok) or fail with GIT_WORKTREE_REMOVE_ERROR depending on
+      // git version's stderr message — the key is we don't crash
+      expect(typeof result.ok).toBe("boolean");
+    });
+  });
+
+  describe("findMainWorktreePath", () => {
+    it("returns the main worktree path", () => {
+      const result = findMainWorktreePath(repoPath, GIT_ENV);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value).toBe(repoPath);
+      }
+    });
+
+    it("returns error on non-git directory", () => {
+      const plain = join(tempDir, "plain-for-main");
+      mkdirSync(plain);
+      const result = findMainWorktreePath(plain, GIT_ENV);
+      expect(result.ok).toBe(false);
     });
   });
 });

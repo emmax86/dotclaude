@@ -4,18 +4,20 @@ import {
   mkdirSync,
   readdirSync,
   realpathSync,
-  readlinkSync,
   rmSync,
   symlinkSync,
 } from "node:fs";
 import { basename, resolve } from "node:path";
 import { type Paths } from "../constants";
-import { type Result, ok, err } from "../types";
-import { type RepoEntry } from "../types";
+import { type Result, ok, err, type RepoEntry } from "../types";
 import { readConfig, addRepoToConfig, removeRepoFromConfig } from "../lib/config";
 import { generateVSCodeWorkspace } from "../lib/vscode";
 import { isGitRepo, getDefaultBranch, removeWorktree, type GitEnv } from "../lib/git";
-import { removePoolWorktreeReference } from "./worktree";
+import {
+  classifyWorktreeEntry,
+  resolveRepoPath,
+  removePoolWorktreeReference,
+} from "../lib/worktree-utils";
 import { toSlug } from "../lib/slug";
 
 export interface RepoInfo extends RepoEntry {
@@ -37,6 +39,9 @@ export function addRepo(
 
   const name = nameOverride ?? basename(absPath);
 
+  if (!name || name.includes("/") || name.includes("\\") || name.includes("..")) {
+    return err(`Invalid repo name: "${name}"`, "INVALID_NAME");
+  }
   if (name === "trees") {
     return err(`"trees" is a reserved name and cannot be used as a repo name`, "RESERVED_NAME");
   }
@@ -73,53 +78,15 @@ export function addRepo(
 
   // Create {workspace}/{repo-name}/ directory
   const repoDirPath = paths.repoDir(workspace, name);
+  const wsTreeEntry = paths.workspaceTreeEntry(workspace, name);
   let repoDirCreated = false;
   let wsTreeCreated = false;
-  let defaultBranchSlugPath: string | undefined;
 
-  try {
-    if (!existsSync(repoDirPath)) {
-      mkdirSync(repoDirPath, { recursive: true });
-      repoDirCreated = true;
-    }
-
-    // Create {workspace}/trees/ and workspace-local {workspace}/trees/{name} -> ../../repos/{name}
-    mkdirSync(paths.workspaceTrees(workspace), { recursive: true });
-    const wsTreeEntry = paths.workspaceTreeEntry(workspace, name);
-    if (!existsSync(wsTreeEntry)) {
-      symlinkSync(`../../repos/${name}`, wsTreeEntry);
-      wsTreeCreated = true;
-    }
-
-    // Detect default branch and create symlink
-    const branchResult = getDefaultBranch(absPath, env);
-    if (!branchResult.ok) {
-      throw new Error(branchResult.error);
-    }
-
-    const slug = toSlug(branchResult.value);
-    defaultBranchSlugPath = paths.worktreeDir(workspace, name, slug);
-
-    if (!existsSync(defaultBranchSlugPath)) {
-      // Symlink: {workspace}/{repo}/{slug} -> ../trees/{repo}
-      symlinkSync(`../trees/${name}`, defaultBranchSlugPath);
-    }
-
-    // Add to workspace.json
-    const configResult = addRepoToConfig(paths.workspaceConfig(workspace), {
-      name,
-      path: absPath,
-    });
-    if (!configResult.ok) {
-      throw new Error(configResult.error);
-    }
-  } catch (e) {
-    // Clean up repo dir if we created it (don't touch global tree)
+  function cleanup() {
     if (repoDirCreated && existsSync(repoDirPath)) {
       rmSync(repoDirPath, { recursive: true, force: true });
     }
     if (wsTreeCreated) {
-      const wsTreeEntry = paths.workspaceTreeEntry(workspace, name);
       try {
         lstatSync(wsTreeEntry);
         rmSync(wsTreeEntry);
@@ -127,17 +94,58 @@ export function addRepo(
         /* already gone */
       }
     }
-    return err(String(e), "REPO_ADD_ERROR");
   }
 
-  generateVSCodeWorkspace(workspace, paths);
+  if (!existsSync(repoDirPath)) {
+    mkdirSync(repoDirPath, { recursive: true });
+    repoDirCreated = true;
+  }
+
+  // Create {workspace}/trees/ and workspace-local {workspace}/trees/{name} -> ../../repos/{name}
+  mkdirSync(paths.workspaceTrees(workspace), { recursive: true });
+  if (!existsSync(wsTreeEntry)) {
+    symlinkSync(`../../repos/${name}`, wsTreeEntry);
+    wsTreeCreated = true;
+  }
+
+  // Detect default branch and create symlink
+  const branchResult = getDefaultBranch(absPath, env);
+  if (!branchResult.ok) {
+    cleanup();
+    return branchResult; // preserves GIT_DEFAULT_BRANCH_ERROR
+  }
+
+  const slug = toSlug(branchResult.value);
+  const defaultBranchSlugPath = paths.worktreeDir(workspace, name, slug);
+  if (!existsSync(defaultBranchSlugPath)) {
+    // Symlink: {workspace}/{repo}/{slug} -> ../trees/{repo}
+    symlinkSync(`../trees/${name}`, defaultBranchSlugPath);
+  }
+
+  // Add to workspace.json
+  const configResult = addRepoToConfig(paths.workspaceConfig(workspace), {
+    name,
+    path: absPath,
+  });
+  if (!configResult.ok) {
+    cleanup();
+    return configResult; // preserves CONFIG_NOT_FOUND etc.
+  }
+
+  const vscodeResult = generateVSCodeWorkspace(workspace, paths);
+  if (!vscodeResult.ok) return vscodeResult;
 
   return ok({ name, path: absPath, status: "ok" });
 }
 
 export function listRepos(workspace: string, paths: Paths): Result<RepoInfo[]> {
   const configResult = readConfig(paths.workspaceConfig(workspace));
-  if (!configResult.ok) return configResult;
+  if (!configResult.ok) {
+    if (configResult.code === "CONFIG_NOT_FOUND") {
+      return err(`Workspace "${workspace}" not found`, "WORKSPACE_NOT_FOUND");
+    }
+    return configResult;
+  }
 
   return ok(
     configResult.value.repos.map((repo) => {
@@ -172,24 +180,11 @@ export function removeRepo(
 
     for (const slug of entries) {
       const wtPath = paths.worktreeDir(workspace, name, slug);
-      try {
-        const lstat = lstatSync(wtPath);
-        if (lstat.isSymbolicLink()) {
-          let target: string;
-          try {
-            target = readlinkSync(wtPath);
-          } catch {
-            continue;
-          }
-          if (target.startsWith("../../worktrees/")) {
-            poolSlugs.push(slug);
-          }
-          // ../trees/ links: skip (default branch)
-        } else if (lstat.isDirectory()) {
-          legacySlugs.push(slug);
-        }
-      } catch {
-        // skip
+      const kind = classifyWorktreeEntry(wtPath);
+      if (kind === "pool") {
+        poolSlugs.push(slug);
+      } else if (kind === "legacy") {
+        legacySlugs.push(slug);
       }
     }
 
@@ -204,13 +199,8 @@ export function removeRepo(
     }
 
     if (options.force && totalWorktrees > 0) {
-      const treePath = paths.repoEntry(name);
-      let realRepoPath: string;
-      try {
-        realRepoPath = realpathSync(treePath);
-      } catch {
-        realRepoPath = "";
-      }
+      const repoPathResult = resolveRepoPath(name, paths);
+      const realRepoPath = repoPathResult.ok ? repoPathResult.value : "";
 
       for (const slug of poolSlugs) {
         const removeResult = removePoolWorktreeReference(
@@ -259,7 +249,8 @@ export function removeRepo(
   const removeResult = removeRepoFromConfig(paths.workspaceConfig(workspace), name);
   if (!removeResult.ok) return removeResult;
 
-  generateVSCodeWorkspace(workspace, paths);
+  const vscodeResult = generateVSCodeWorkspace(workspace, paths);
+  if (!vscodeResult.ok) return vscodeResult;
 
   return ok(undefined);
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { join } from "node:path";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { createTestDir, cleanup } from "../helpers";
 import {
   readConfig,
@@ -106,6 +106,37 @@ describe("config", () => {
     if (!result.ok) {
       expect(result.code).toBe("CONFIG_INVALID");
     }
+  });
+
+  it("writeConfig returns error when path is not writable", () => {
+    // Write to a path inside a non-writable directory
+    const roDir = join(tempDir, "readonly");
+    mkdirSync(roDir);
+    chmodSync(roDir, 0o444);
+    const roConfig = join(roDir, "workspace.json");
+    const result = writeConfig(roConfig, { name: "test", repos: [] });
+    chmodSync(roDir, 0o755); // restore so cleanup works
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("CONFIG_WRITE_FAILED");
+    }
+  });
+
+  it("addRepoToConfig propagates writeConfig failure", () => {
+    writeConfig(configPath, { name: "myws", repos: [] });
+    // Make the directory read-only so write fails
+    chmodSync(wsDir, 0o444);
+    const result = addRepoToConfig(configPath, { name: "r", path: "/p" });
+    chmodSync(wsDir, 0o755);
+    expect(result.ok).toBe(false);
+  });
+
+  it("removeRepoFromConfig propagates writeConfig failure", () => {
+    writeConfig(configPath, { name: "myws", repos: [{ name: "r", path: "/p" }] });
+    chmodSync(wsDir, 0o444);
+    const result = removeRepoFromConfig(configPath, "r");
+    chmodSync(wsDir, 0o755);
+    expect(result.ok).toBe(false);
   });
 });
 
@@ -232,6 +263,28 @@ describe("pool config", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value).toEqual([]);
+    }
+  });
+
+  it("readPoolConfig with valid JSON but array schema returns error", () => {
+    writeFileSync(poolConfigPath, JSON.stringify([1, 2, 3]));
+    const result = readPoolConfig(poolConfigPath);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("POOL_CONFIG_INVALID");
+    }
+  });
+
+  it("writePoolConfig returns error when path is not writable", () => {
+    const roDir = join(tempDir, "readonly");
+    mkdirSync(roDir);
+    chmodSync(roDir, 0o444);
+    const roPool = join(roDir, "worktrees.json");
+    const result = writePoolConfig(roPool, {});
+    chmodSync(roDir, 0o755);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("POOL_CONFIG_WRITE_FAILED");
     }
   });
 });
