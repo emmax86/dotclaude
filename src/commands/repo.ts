@@ -4,6 +4,7 @@ import {
   mkdirSync,
   readdirSync,
   realpathSync,
+  readlinkSync,
   rmSync,
   symlinkSync,
 } from "node:fs";
@@ -13,6 +14,7 @@ import { type Result, ok, err } from "../types";
 import { type RepoEntry } from "../types";
 import { readConfig, addRepoToConfig, removeRepoFromConfig } from "../lib/config";
 import { isGitRepo, getDefaultBranch, removeWorktree, type GitEnv } from "../lib/git";
+import { removePoolWorktreeReference } from "./worktree";
 import { toSlug } from "../lib/slug";
 
 export interface RepoInfo extends RepoEntry {
@@ -155,40 +157,63 @@ export function removeRepo(
 ): Result<void> {
   const repoDir = paths.repoDir(workspace, name);
   if (existsSync(repoDir)) {
-    // Check for real worktrees (non-symlink directories)
+    // Three-way classification of entries:
+    // 1. Default-branch symlink (../trees/) — skip, cleaned by rmSync(repoDir)
+    // 2. Pool symlink (../../worktrees/) — count as worktree
+    // 3. Legacy real directory — count as worktree
     const entries = readdirSync(repoDir);
-    const realWorktrees: string[] = [];
+    const poolSlugs: string[] = [];
+    const legacySlugs: string[] = [];
 
     for (const slug of entries) {
       const wtPath = paths.worktreeDir(workspace, name, slug);
       try {
         const lstat = lstatSync(wtPath);
-        if (!lstat.isSymbolicLink() && lstat.isDirectory()) {
-          realWorktrees.push(slug);
+        if (lstat.isSymbolicLink()) {
+          let target: string;
+          try { target = readlinkSync(wtPath); } catch { continue; }
+          if (target.startsWith("../../worktrees/")) {
+            poolSlugs.push(slug);
+          }
+          // ../trees/ links: skip (default branch)
+        } else if (lstat.isDirectory()) {
+          legacySlugs.push(slug);
         }
       } catch {
         // skip
       }
     }
 
-    if (realWorktrees.length > 0 && !options.force) {
+    const totalWorktrees = poolSlugs.length + legacySlugs.length;
+
+    if (totalWorktrees > 0 && !options.force) {
+      const all = [...poolSlugs, ...legacySlugs];
       return err(
-        `Repo "${name}" has worktrees: ${realWorktrees.join(", ")}. Use --force to remove.`,
+        `Repo "${name}" has worktrees: ${all.join(", ")}. Use --force to remove.`,
         "REPO_HAS_WORKTREES"
       );
     }
 
-    if (options.force && realWorktrees.length > 0) {
+    if (options.force && totalWorktrees > 0) {
       const treePath = paths.repoEntry(name);
       let realRepoPath: string;
       try {
         realRepoPath = realpathSync(treePath);
       } catch {
-        // dangling — skip git ops
         realRepoPath = "";
       }
 
-      for (const slug of realWorktrees) {
+      for (const slug of poolSlugs) {
+        const removeResult = removePoolWorktreeReference(workspace, name, slug, { force: true }, paths, env);
+        if (!removeResult.ok) {
+          return err(
+            `Failed to remove pool worktree ${slug}: ${removeResult.error}`,
+            "WORKTREE_REMOVE_FAILED"
+          );
+        }
+      }
+
+      for (const slug of legacySlugs) {
         const wtPath = paths.worktreeDir(workspace, name, slug);
         if (realRepoPath) {
           const removeResult = removeWorktree(realRepoPath, wtPath, true, env);

@@ -1,11 +1,12 @@
-import { existsSync, lstatSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, rmSync, statSync } from "node:fs";
 import { realpathSync } from "node:fs";
 import { type Paths } from "../constants";
 import { type Result, ok, err, type WorkspaceConfig } from "../types";
 import { writeConfig, readConfig } from "../lib/config";
 import { removeWorktree, type GitEnv } from "../lib/git";
+import { removePoolWorktreeReference } from "./worktree";
 
-const RESERVED_NAMES = new Set(["repos"]);
+const RESERVED_NAMES = new Set(["repos", "worktrees"]);
 
 function validateName(name: string): Result<void> {
   if (!name || name.includes("/") || name.includes("\\") || name.includes("..")) {
@@ -52,7 +53,7 @@ export function listWorkspaces(paths: Paths): Result<WorkspaceInfo[]> {
   const workspaces: WorkspaceInfo[] = [];
 
   for (const entry of entries) {
-    if (entry === "repos") continue;
+    if (entry === "repos" || entry === "worktrees") continue;
     const wsPath = paths.workspace(entry);
     try {
       const stat = statSync(wsPath);
@@ -101,15 +102,6 @@ export function removeWorkspace(
       const repoDir = paths.repoDir(name, repo.name);
       if (!existsSync(repoDir)) continue;
 
-      const treePath = paths.repoEntry(repo.name);
-      let realRepoPath: string;
-      try {
-        realRepoPath = realpathSync(treePath);
-      } catch {
-        // Dangling symlink — skip git operations, just clean up
-        continue;
-      }
-
       let entries: string[];
       try {
         entries = readdirSync(repoDir);
@@ -121,11 +113,30 @@ export function removeWorkspace(
         const wtPath = paths.worktreeDir(name, repo.name, slug);
         try {
           const lstat = lstatSync(wtPath);
-          if (lstat.isSymbolicLink() || !lstat.isDirectory()) continue;
-
-          const removeResult = removeWorktree(realRepoPath, wtPath, true, env);
-          if (!removeResult.ok) {
-            errors.push(`${repo.name}/${slug}: ${removeResult.error}`);
+          if (lstat.isSymbolicLink()) {
+            let target: string;
+            try { target = readlinkSync(wtPath); } catch { continue; }
+            if (target.startsWith("../../worktrees/")) {
+              // Pool symlink
+              const removeResult = removePoolWorktreeReference(name, repo.name, slug, { force: true }, paths, env);
+              if (!removeResult.ok) {
+                errors.push(`${repo.name}/${slug}: ${removeResult.error}`);
+              }
+            }
+            // ../trees/ links: skip (default branch, cleaned by rmSync(wsPath))
+          } else if (lstat.isDirectory()) {
+            // Legacy real worktree
+            const treePath = paths.repoEntry(repo.name);
+            let realRepoPath: string;
+            try {
+              realRepoPath = realpathSync(treePath);
+            } catch {
+              continue; // dangling — skip
+            }
+            const removeResult = removeWorktree(realRepoPath, wtPath, true, env);
+            if (!removeResult.ok) {
+              errors.push(`${repo.name}/${slug}: ${removeResult.error}`);
+            }
           }
         } catch {
           // entry gone, skip

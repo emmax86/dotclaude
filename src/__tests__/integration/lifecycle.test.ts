@@ -4,9 +4,9 @@ import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "../helpers";
 import { createPaths } from "../../constants";
 import { addWorkspace, listWorkspaces } from "../../commands/workspace";
 import { addRepo, listRepos } from "../../commands/repo";
-import { addWorktree, listWorktrees } from "../../commands/worktree";
+import { addWorktree, listWorktrees, removeWorktree } from "../../commands/worktree";
 import { getStatus } from "../../commands/status";
-import { existsSync, lstatSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, readlinkSync, realpathSync } from "node:fs";
 
 describe("lifecycle integration", () => {
   let tempDir: string;
@@ -74,10 +74,16 @@ describe("lifecycle integration", () => {
       expect(slugs).toContain("feature-lifecycle");
     }
 
-    // verify it's a real directory, not a symlink
-    const stat = lstatSync(paths.worktreeDir("myws", "myrepo", "feature-lifecycle"));
-    expect(stat.isDirectory()).toBe(true);
-    expect(stat.isSymbolicLink()).toBe(false);
+    // Workspace entry is a symlink pointing to the pool
+    const wsEntry = paths.worktreeDir("myws", "myrepo", "feature-lifecycle");
+    expect(lstatSync(wsEntry).isSymbolicLink()).toBe(true);
+    expect(readlinkSync(wsEntry)).toBe("../../worktrees/myrepo/feature-lifecycle");
+
+    // Pool entry is a real directory
+    const poolEntry = paths.worktreePoolEntry("myrepo", "feature-lifecycle");
+    expect(existsSync(poolEntry)).toBe(true);
+    expect(lstatSync(poolEntry).isDirectory()).toBe(true);
+    expect(lstatSync(poolEntry).isSymbolicLink()).toBe(false);
   });
 
   it("ws status shows workspace overview", () => {
@@ -105,5 +111,41 @@ describe("lifecycle integration", () => {
         list2.value.find((r) => r.name === "myrepo")?.path
       );
     }
+  });
+
+  it("two workspaces share a worktree via pool", () => {
+    // otherws was created in the previous test
+    addRepo("otherws", repoPath, undefined, paths, GIT_ENV);
+
+    // Add same branch to both workspaces
+    const r1 = addWorktree("myws", "myrepo", "feature/pool-share", { newBranch: true }, paths, GIT_ENV);
+    expect(r1.ok).toBe(true);
+    const r2 = addWorktree("otherws", "myrepo", "feature/pool-share", {}, paths, GIT_ENV);
+    expect(r2.ok).toBe(true);
+
+    const poolEntry = paths.worktreePoolEntry("myrepo", "feature-pool-share");
+
+    // Both workspace entries are symlinks to same pool entry
+    const ws1Link = paths.worktreeDir("myws", "myrepo", "feature-pool-share");
+    const ws2Link = paths.worktreeDir("otherws", "myrepo", "feature-pool-share");
+    expect(lstatSync(ws1Link).isSymbolicLink()).toBe(true);
+    expect(lstatSync(ws2Link).isSymbolicLink()).toBe(true);
+    expect(readlinkSync(ws1Link)).toBe("../../worktrees/myrepo/feature-pool-share");
+    expect(readlinkSync(ws2Link)).toBe("../../worktrees/myrepo/feature-pool-share");
+
+    // Remove from ws1 — pool should persist for ws2
+    const rm1 = removeWorktree("myws", "myrepo", "feature-pool-share", {}, paths, GIT_ENV);
+    expect(rm1.ok).toBe(true);
+
+    let ws1Gone = false;
+    try { lstatSync(ws1Link); } catch { ws1Gone = true; }
+    expect(ws1Gone).toBe(true);
+    expect(existsSync(poolEntry)).toBe(true);
+    expect(lstatSync(ws2Link).isSymbolicLink()).toBe(true);
+
+    // Remove from ws2 — pool should be cleaned up
+    const rm2 = removeWorktree("otherws", "myrepo", "feature-pool-share", {}, paths, GIT_ENV);
+    expect(rm2.ok).toBe(true);
+    expect(existsSync(poolEntry)).toBe(false);
   });
 });

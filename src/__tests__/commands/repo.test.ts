@@ -205,4 +205,49 @@ describe("repo commands", () => {
       expect(repo?.status).toBe("dangling");
     }
   });
+
+  it("remove refuses if pool worktrees exist without --force", () => {
+    addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    addWorktree("myws", "myrepo", "feature/pool", { newBranch: true }, paths, GIT_ENV);
+
+    const result = removeRepo("myws", "myrepo", {}, paths, GIT_ENV);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("REPO_HAS_WORKTREES");
+    }
+  });
+
+  it("remove --force cleans up pool worktree", () => {
+    addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    addWorktree("myws", "myrepo", "feature/pool", { newBranch: true }, paths, GIT_ENV);
+
+    const poolEntry = paths.worktreePoolEntry("myrepo", "feature-pool");
+    expect(existsSync(poolEntry)).toBe(true);
+
+    const result = removeRepo("myws", "myrepo", { force: true }, paths, GIT_ENV);
+    expect(result.ok).toBe(true);
+    expect(existsSync(paths.repoDir("myws", "myrepo"))).toBe(false);
+    // Pool entry removed since last reference
+    expect(existsSync(poolEntry)).toBe(false);
+  });
+
+  it("remove --force with shared pool worktree preserves pool entry for other workspace", () => {
+    addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    addWorkspace("otherws", paths);
+    addRepo("otherws", repoPath, undefined, paths, GIT_ENV);
+    addWorktree("myws", "myrepo", "feature/shared", { newBranch: true }, paths, GIT_ENV);
+    addWorktree("otherws", "myrepo", "feature/shared", {}, paths, GIT_ENV);
+
+    const poolEntry = paths.worktreePoolEntry("myrepo", "feature-shared");
+
+    // Remove from myws — pool entry should persist for otherws
+    const result = removeRepo("myws", "myrepo", { force: true }, paths, GIT_ENV);
+    expect(result.ok).toBe(true);
+
+    // Pool entry persists
+    expect(existsSync(poolEntry)).toBe(true);
+
+    // otherws symlink intact
+    expect(lstatSync(paths.worktreeDir("otherws", "myrepo", "feature-shared")).isSymbolicLink()).toBe(true);
+  });
 });

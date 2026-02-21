@@ -47,11 +47,16 @@ When run from inside a workspace directory, `[workspace]` and `[repo]` args are 
 ## Key facts
 
 - `repos/` is a global registry — one symlink per repo, shared across workspaces.
+- `worktrees/` is a central pool of real git worktrees, shared across workspaces.
+- `worktrees.json` tracks which workspaces reference each pool entry (reference counting).
 - Removing a repo from a workspace never removes the global repo symlink.
 - The default branch is a symlink (`../trees/{repo}`), not a real worktree.
 - Each workspace has a `trees/` subdirectory with per-workspace symlinks → `../../repos/{repo}`.
-- The name `trees` is reserved and cannot be used as a repo name.
-- `--force` on remove will run `git worktree remove --force` on all real worktrees first.
+- Worktree entries in a workspace are symlinks (`../../worktrees/{repo}/{slug}`) into the pool.
+- When two workspaces add the same branch, they share one pool entry (no git duplicate error).
+- The pool entry is only removed when the last workspace reference is removed.
+- The names `trees`, `repos`, and `worktrees` are reserved and cannot be used as workspace or repo names.
+- `--force` on remove will clean up pool references and run `git worktree remove --force` when needed.
 
 ## Examples
 

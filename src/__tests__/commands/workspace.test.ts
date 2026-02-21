@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { join } from "node:path";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync } from "node:fs";
 import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "../helpers";
 import { createPaths } from "../../constants";
 import { addWorkspace, listWorkspaces, removeWorkspace } from "../../commands/workspace";
@@ -120,5 +120,44 @@ describe("workspace commands", () => {
     if (!result.ok) {
       expect(result.code).toBe("WORKSPACE_NOT_FOUND");
     }
+  });
+
+  it("add rejects reserved name 'worktrees'", () => {
+    const result = addWorkspace("worktrees", paths);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("RESERVED_NAME");
+    }
+  });
+
+  it("list excludes worktrees/ directory", () => {
+    addWorkspace("myws", paths);
+    mkdirSync(paths.worktreePool, { recursive: true });
+
+    const list = listWorkspaces(paths);
+    expect(list.ok).toBe(true);
+    if (list.ok) {
+      expect(list.value.map((w) => w.name)).not.toContain("worktrees");
+    }
+  });
+
+  it("remove --force with shared pool worktree preserves pool entry for other workspace", () => {
+    const repoPath = createTestGitRepo(tempDir, "repo");
+    addWorkspace("ws1", paths);
+    addWorkspace("ws2", paths);
+    addRepo("ws1", repoPath, undefined, paths, GIT_ENV);
+    addRepo("ws2", repoPath, undefined, paths, GIT_ENV);
+    addWorktree("ws1", "repo", "feature/shared", { newBranch: true }, paths, GIT_ENV);
+    addWorktree("ws2", "repo", "feature/shared", {}, paths, GIT_ENV);
+
+    const poolEntry = paths.worktreePoolEntry("repo", "feature-shared");
+
+    const result = removeWorkspace("ws1", { force: true }, paths, GIT_ENV);
+    expect(result.ok).toBe(true);
+    expect(existsSync(paths.workspace("ws1"))).toBe(false);
+
+    // Pool entry persists for ws2
+    expect(existsSync(poolEntry)).toBe(true);
+    expect(lstatSync(paths.worktreeDir("ws2", "repo", "feature-shared")).isSymbolicLink()).toBe(true);
   });
 });

@@ -33,3 +33,5 @@ export interface Context {
   repo?: string;
   worktree?: string;
 }
+
+export type WorktreePool = Record<string, Record<string, string[]>>;

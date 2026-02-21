@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "bun:test";
 import { join } from "node:path";
-import { mkdirSync, symlinkSync } from "node:fs";
+import { existsSync, mkdirSync, symlinkSync } from "node:fs";
 import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "./helpers";
 import { createPaths } from "../constants";
 import { addWorkspace } from "../commands/workspace";
@@ -68,12 +68,14 @@ describe("context inference", () => {
     expect(ctx.repo).toBeUndefined();
   });
 
-  it("cwd inside {workspace}/trees/{repo}/ → returns nothing (symlink resolves outside root)", () => {
-    // trees/myrepo is a symlink. inferContext calls realpathSync(cwd) which follows it
-    // all the way to the actual repo path, which is outside wsRoot.
+  it("cwd inside {workspace}/trees/{repo}/ → workspace only (logical path found)", () => {
+    // trees/myrepo is a symlink. With logical-walk-first, we find {workspace}/workspace.json
+    // before following any symlinks. The path segment "trees" is not a registered repo,
+    // so only the workspace context is returned.
     const treesRepoDir = join(paths.workspace("myws"), "trees", "myrepo");
     const ctx = inferContext(treesRepoDir, wsRoot);
-    expect(ctx.workspace).toBeUndefined();
+    expect(ctx.workspace).toBe("myws");
+    expect(ctx.repo).toBeUndefined();
   });
 
   it("infers correctly when cwd contains unresolved symlink prefix (macOS /tmp regression)", () => {
@@ -99,5 +101,26 @@ describe("context inference", () => {
     const ctx = inferContext(fakeRepoDir, wsRoot);
     expect(ctx.workspace).toBe("myws");
     expect(ctx.repo).toBeUndefined(); // not registered
+  });
+
+  it("cwd via workspace symlink into pool worktree infers full context", () => {
+    // The pool symlink is at {ws}/{repo}/{slug} → ../../worktrees/{repo}/{slug}
+    // Logical walk from {ws}/{repo}/{slug}/src/lib finds workspace.json at {ws}/
+    // and correctly extracts repo + worktree without resolving the symlink.
+    const deepPath = join(paths.worktreeDir("myws", "myrepo", "feature-ctx"), "src", "lib");
+    const ctx = inferContext(deepPath, wsRoot);
+    expect(ctx.workspace).toBe("myws");
+    expect(ctx.repo).toBe("myrepo");
+    expect(ctx.worktree).toBe("feature-ctx");
+  });
+
+  it("cwd inside pool directory directly returns nothing (no workspace.json in pool)", () => {
+    // Pool is at {root}/worktrees/, which has no workspace.json
+    const poolEntry = paths.worktreePoolEntry("myrepo", "feature-ctx");
+    // Only test if pool entry exists (it does because addWorktree in beforeAll created it)
+    if (existsSync(poolEntry)) {
+      const ctx = inferContext(poolEntry, wsRoot);
+      expect(ctx.workspace).toBeUndefined();
+    }
   });
 });

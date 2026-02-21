@@ -13,33 +13,52 @@ function tryRealpath(p: string): string {
 
 /**
  * Walk up from cwd looking for workspace.json to infer workspace/repo/worktree context.
+ *
+ * Uses logical (unresolved) cwd first so pool worktrees accessed via symlinks are
+ * correctly resolved back to their workspace. Falls back to the realpath cwd to
+ * handle macOS /tmp → /private/tmp aliasing.
  */
 export function inferContext(cwd: string, workspacesRoot: string): Context {
-  // Resolve symlinks so paths are comparable (macOS /tmp -> /private/tmp)
-  const realCwd = tryRealpath(cwd);
   const realRoot = tryRealpath(workspacesRoot);
 
-  // Find workspace.json by walking up
-  let dir = realCwd;
+  // Step 1: Walk logical cwd (existsSync follows symlinks, so this works for pool symlinks
+  // as well as macOS /tmp aliases)
   let found: string | undefined;
+  let effectiveCwd = cwd;
 
+  let dir = cwd;
   while (dir !== dirname(dir)) {
-    const candidate = join(dir, "workspace.json");
-    if (existsSync(candidate)) {
+    if (existsSync(join(dir, "workspace.json"))) {
       found = dir;
       break;
     }
     dir = dirname(dir);
   }
 
+  // Step 2: Fall back to resolved cwd if logical walk failed (edge case: broken path components)
+  if (!found) {
+    const resolvedCwd = tryRealpath(cwd);
+    if (resolvedCwd !== cwd) {
+      effectiveCwd = resolvedCwd;
+      let dir2 = resolvedCwd;
+      while (dir2 !== dirname(dir2)) {
+        if (existsSync(join(dir2, "workspace.json"))) {
+          found = dir2;
+          break;
+        }
+        dir2 = dirname(dir2);
+      }
+    }
+  }
+
   if (!found) return {};
 
-  // found is the workspace directory
   const workspaceDir = found;
   const workspaceName = workspaceDir.split(sep).pop() ?? "";
 
-  // Make sure it's actually inside the workspaces root
-  const rel = relative(realRoot, workspaceDir);
+  // Step 3-4: Resolve found dir for root-containment check
+  const realFound = tryRealpath(found);
+  const rel = relative(realRoot, realFound);
   if (rel.startsWith("..") || rel === "") {
     return {};
   }
@@ -49,10 +68,11 @@ export function inferContext(cwd: string, workspacesRoot: string): Context {
     workspacePath: workspaceDir,
   };
 
-  // Compute relative path from workspace to cwd
-  const relToCwd = relative(workspaceDir, realCwd);
+  // Step 5: Extract repo/worktree segments.
+  // Both effectiveCwd and found are in the same domain (both logical or both resolved),
+  // so relative() produces the correct answer.
+  const relToCwd = relative(found, effectiveCwd);
   if (!relToCwd) {
-    // At workspace root
     return context;
   }
 
