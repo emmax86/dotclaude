@@ -89,7 +89,7 @@ function main() {
 
   const root = process.env.DOTCLAUDE_ROOT ?? DEFAULT_WORKSPACES_ROOT;
   const paths = createPaths(root);
-  const ctx = inferContext(process.cwd(), root);
+  const ctx = inferContext(process.env.PWD ?? process.cwd(), root);
 
   // argv[0] = cmd (ws/workspaces), argv[1] = subcommand
   const cmd = argv[0];
