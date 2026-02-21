@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readdirSync, realpathSync, rmSync, symlinkSync } from "node:fs";
-import { basename, resolve } from "node:path";
+import { basename, dirname, relative, resolve } from "node:path";
 import { type Paths } from "../constants";
 import { type Result, ok, err, type RepoEntry } from "../types";
 import { readConfig, addRepoToConfig, removeRepoFromConfig } from "../lib/config";
@@ -93,8 +93,11 @@ export function addRepo(
   const slug = toSlug(branchResult.value);
   const defaultBranchSlugPath = paths.worktreeDir(workspace, name, slug);
   if (!existsSync(defaultBranchSlugPath)) {
-    // Symlink: {workspace}/trees/{repo}/{slug} -> ../../../repos/{repo}
-    symlinkSync(`../../../repos/${name}`, defaultBranchSlugPath);
+    // Symlink: {workspace}/trees/{repo}/{slug} -> repos/{repo}
+    symlinkSync(
+      relative(dirname(defaultBranchSlugPath), paths.repoEntry(name)),
+      defaultBranchSlugPath,
+    );
   }
 
   // Add to workspace.json
@@ -155,7 +158,7 @@ export function removeRepo(
 
     for (const slug of entries) {
       const wtPath = paths.worktreeDir(workspace, name, slug);
-      const kind = classifyWorktreeEntry(wtPath);
+      const kind = classifyWorktreeEntry(wtPath, paths);
       if (kind === "pool") {
         poolSlugs.push(slug);
       } else if (kind === "legacy") {

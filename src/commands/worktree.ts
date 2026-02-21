@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readdirSync, rmSync, symlinkSync } from "node:fs";
+import { dirname, relative } from "node:path";
 import { type Paths } from "../constants";
 import { type Result, ok, err, type WorktreeEntry } from "../types";
 import { readConfig, addPoolReference } from "../lib/config";
@@ -48,7 +49,7 @@ export function addWorktree(
   const wtPath = paths.worktreeDir(workspace, repo, slug);
 
   // Check for slug collision at workspace level
-  if (classifyWorktreeEntry(wtPath) !== null) {
+  if (classifyWorktreeEntry(wtPath, paths) !== null) {
     return err(
       `Target directory already exists: "${wtPath}". Branch slug "${slug}" collides with an existing entry.`,
       "SLUG_COLLISION",
@@ -59,7 +60,7 @@ export function addWorktree(
   let poolEntryCreated = false;
 
   // Check if pool entry exists
-  if (classifyWorktreeEntry(poolEntryPath) !== null) {
+  if (classifyWorktreeEntry(poolEntryPath, paths) !== null) {
     // Already exists — reuse (flags silently ignored)
     poolEntryCreated = false;
   } else {
@@ -76,9 +77,9 @@ export function addWorktree(
     poolEntryCreated = true;
   }
 
-  // Create workspace symlink → ../../../worktrees/{repo}/{slug}
+  // Create workspace symlink → worktrees/{repo}/{slug}
   try {
-    symlinkSync(`../../../worktrees/${repo}/${slug}`, wtPath);
+    symlinkSync(relative(dirname(wtPath), paths.worktreePoolEntry(repo, slug)), wtPath);
   } catch (e) {
     // Rollback pool entry if we created it
     if (poolEntryCreated) {
@@ -134,7 +135,7 @@ export function listWorktrees(
 
   for (const slug of entries) {
     const wtPath = paths.worktreeDir(workspace, repo, slug);
-    const kind = classifyWorktreeEntry(wtPath);
+    const kind = classifyWorktreeEntry(wtPath, paths);
     if (kind === "pool" || kind === "legacy") {
       worktrees.push({ repo, slug, branch: slug, type: "worktree" });
     } else if (kind === "linked") {
@@ -155,7 +156,7 @@ export function removeWorktree(
   env?: GitEnv,
 ): Result<void> {
   const wtPath = paths.worktreeDir(workspace, repo, slug);
-  const kind = classifyWorktreeEntry(wtPath);
+  const kind = classifyWorktreeEntry(wtPath, paths);
 
   if (kind === null) {
     return err(`Worktree "${slug}" not found in repo "${repo}"`, "WORKTREE_NOT_FOUND");

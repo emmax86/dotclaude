@@ -119,7 +119,7 @@ export function removeWorkspace(
 
       for (const slug of entries) {
         const wtPath = paths.worktreeDir(name, repo.name, slug);
-        const kind = classifyWorktreeEntry(wtPath);
+        const kind = classifyWorktreeEntry(wtPath, paths);
         if (kind === "pool") {
           const removeResult = removePoolWorktreeReference(
             name,

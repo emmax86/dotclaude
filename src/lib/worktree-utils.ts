@@ -1,11 +1,9 @@
 import { lstatSync, readdirSync, realpathSync, readlinkSync, rmSync } from "node:fs";
+import { dirname, relative, resolve } from "node:path";
 import { type Paths } from "../constants";
 import { type Result, ok, err } from "../types";
 import { readPoolConfig, removePoolReference } from "./config";
 import { removeWorktree as gitRemoveWorktree, type GitEnv } from "./git";
-
-const POOL_SYMLINK_PREFIX = "../../../worktrees/";
-const DEFAULT_BRANCH_SYMLINK_PREFIX = "../../../repos/";
 
 /**
  * Classify a worktree entry path.
@@ -14,7 +12,10 @@ const DEFAULT_BRANCH_SYMLINK_PREFIX = "../../../repos/";
  * - "legacy" — real directory (old-style git worktree at workspace path)
  * - null     — entry doesn't exist or is not a symlink/directory (caller should skip)
  */
-export function classifyWorktreeEntry(wtPath: string): "pool" | "linked" | "legacy" | null {
+export function classifyWorktreeEntry(
+  wtPath: string,
+  paths: Paths,
+): "pool" | "linked" | "legacy" | null {
   let lstat: ReturnType<typeof lstatSync>;
   try {
     lstat = lstatSync(wtPath);
@@ -29,9 +30,9 @@ export function classifyWorktreeEntry(wtPath: string): "pool" | "linked" | "lega
     } catch {
       return "linked"; // unreadable symlink — treat as linked (safe fallback)
     }
-    if (target.startsWith(POOL_SYMLINK_PREFIX)) return "pool";
-    if (target.startsWith(DEFAULT_BRANCH_SYMLINK_PREFIX)) return "linked";
-    return "linked"; // unknown symlink — treat as linked
+    const absoluteTarget = resolve(dirname(wtPath), target);
+    const relToPool = relative(paths.worktreePool, absoluteTarget);
+    return relToPool.startsWith("..") ? "linked" : "pool";
   }
 
   if (lstat.isDirectory()) return "legacy";
