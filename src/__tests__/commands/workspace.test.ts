@@ -1,6 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { join } from "node:path";
-import { existsSync, lstatSync, mkdirSync, realpathSync, rmSync, symlinkSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "../helpers";
 import { createPaths } from "../../constants";
 import {
@@ -318,6 +326,19 @@ describe("workspace commands", () => {
         expect(second.value.repos[0].status).toBe("ok");
         expect(second.value.repos[0].repairs).toHaveLength(0);
       }
+    });
+
+    it("generates trees.md during sync", () => {
+      const repoPath = createTestGitRepo(tempDir, "repo");
+      addWorkspace("myws", paths);
+      addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+
+      // Write CLAUDE.md into the repo so it's picked up
+      writeFileSync(join(repoPath, "CLAUDE.md"), "# repo\n");
+
+      const result = syncWorkspace("myws", paths, GIT_ENV);
+      expect(result.ok).toBe(true);
+      expect(existsSync(paths.claudeTreesMd("myws"))).toBe(true);
     });
   });
 });

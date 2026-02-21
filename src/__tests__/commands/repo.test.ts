@@ -5,6 +5,7 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
+  readFileSync,
   readlinkSync,
   rmSync,
   writeFileSync,
@@ -344,5 +345,31 @@ describe("repo commands", () => {
     if (!result.ok) {
       expect(result.code).toBe("INVALID_NAME");
     }
+  });
+
+  it("addRepo generates trees.md", () => {
+    writeFileSync(join(repoPath, "CLAUDE.md"), "# myrepo\n");
+    const result = addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    expect(result.ok).toBe(true);
+    expect(existsSync(paths.claudeTreesMd("myws"))).toBe(true);
+    const content = readFileSync(paths.claudeTreesMd("myws"), "utf-8");
+    expect(content).toContain("@../trees/myrepo/main/CLAUDE.md");
+  });
+
+  it("removeRepo updates trees.md", () => {
+    const repoPath2 = createTestGitRepo(tempDir, "other");
+    writeFileSync(join(repoPath, "CLAUDE.md"), "# myrepo\n");
+    writeFileSync(join(repoPath2, "CLAUDE.md"), "# other\n");
+    addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    addRepo("myws", repoPath2, undefined, paths, GIT_ENV);
+
+    const before = readFileSync(paths.claudeTreesMd("myws"), "utf-8");
+    expect(before).toContain("myrepo");
+    expect(before).toContain("other");
+
+    removeRepo("myws", "myrepo", {}, paths, GIT_ENV);
+    const after = readFileSync(paths.claudeTreesMd("myws"), "utf-8");
+    expect(after).not.toContain("myrepo");
+    expect(after).toContain("other");
   });
 });
