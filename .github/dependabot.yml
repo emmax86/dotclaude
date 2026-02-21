@@ -1,0 +1,21 @@
+version: 2
+updates:
+  # "npm" covers all JS package managers including Bun (detected via bun.lock)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "build(deps)"
+    groups:
+      development:
+        dependency-type: "development"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "ci(deps)"
