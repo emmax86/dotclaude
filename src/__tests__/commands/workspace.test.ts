@@ -4,6 +4,7 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
+  readFileSync,
   realpathSync,
   rmSync,
   symlinkSync,
@@ -202,6 +203,26 @@ describe("workspace commands", () => {
 
     // Pool entry persists for otherws
     expect(existsSync(poolEntry)).toBe(true);
+  });
+
+  it("does clean metadata-only pool entries when removeWorkspace --force and symlink missing", async () => {
+    const repoPath = await createTestGitRepo(tempDir, "myrepo");
+    await addWorkspace("myws", paths);
+    await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
+
+    // Externally delete the workspace symlink — metadata entry remains in worktrees.json
+    rmSync(paths.worktreeDir("myws", "myrepo", "feature-x"), { force: true });
+
+    const before = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+    expect(before.myrepo?.["feature-x"]).toContain("myws");
+
+    const result = await removeWorkspace("myws", { force: true }, paths, GIT_ENV);
+    expect(result.ok).toBe(true);
+
+    // worktrees.json should be cleaned
+    const after = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+    expect(after.myrepo).toBeUndefined();
   });
 
   it("add creates workspace.json, .code-workspace, and trees.md", async () => {

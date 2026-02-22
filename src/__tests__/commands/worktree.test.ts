@@ -375,6 +375,21 @@ describe("worktree commands", () => {
     }
   });
 
+  it("does clean worktrees.json when removeWorktree called after symlink externally deleted", async () => {
+    await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
+
+    // Externally delete the workspace symlink (simulates manual deletion)
+    rmSync(paths.worktreeDir("myws", "myrepo", "feature-x"), { force: true });
+
+    // classifyWorktreeEntry returns null for the missing symlink — should fall back to json lookup
+    const result = await removeWorktree("myws", "myrepo", "feature-x", {}, paths, GIT_ENV);
+    expect(result.ok).toBe(true);
+
+    // worktrees.json should be cleaned up
+    const pool = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+    expect(pool.myrepo).toBeUndefined();
+  });
+
   describe("pruneWorktrees", () => {
     it("returns empty pruned list when no dangling entries", async () => {
       await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
@@ -592,6 +607,27 @@ describe("worktree commands", () => {
       if (result.ok) {
         expect(result.value.pruned).toEqual([]);
       }
+    });
+
+    it("does prune orphaned worktrees.json entries with no symlink and no pool dir", async () => {
+      await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
+
+      // Delete both the workspace symlink and the pool dir — orphaned json entry remains
+      rmSync(paths.worktreeDir("myws", "myrepo", "feature-x"), { force: true });
+      rmSync(paths.worktreePoolEntry("myrepo", "feature-x"), { recursive: true, force: true });
+
+      const before = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+      expect(before.myrepo?.["feature-x"]).toContain("myws");
+
+      const result = await pruneWorktrees("myws", paths, GIT_ENV);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.pruned).toHaveLength(1);
+        expect(result.value.pruned[0].slug).toBe("feature-x");
+      }
+
+      const after = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+      expect(after.myrepo).toBeUndefined();
     });
 
     it("does continue pruning remaining entries when rm fails for one entry", async () => {

@@ -347,6 +347,24 @@ describe("repo commands", () => {
     }
   });
 
+  it("does clean metadata-only pool entries when removeRepo --force and symlink missing", async () => {
+    await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
+
+    // Externally delete the workspace symlink — metadata entry remains in worktrees.json
+    rmSync(paths.worktreeDir("myws", "myrepo", "feature-x"), { force: true });
+
+    const before = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+    expect(before.myrepo?.["feature-x"]).toContain("myws");
+
+    const result = await removeRepo("myws", "myrepo", { force: true }, paths, GIT_ENV);
+    expect(result.ok).toBe(true);
+
+    // worktrees.json should be cleaned
+    const after = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+    expect(after.myrepo).toBeUndefined();
+  });
+
   it("addRepo generates trees.md", async () => {
     writeFileSync(join(repoPath, "CLAUDE.md"), "# myrepo\n");
     const result = await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
