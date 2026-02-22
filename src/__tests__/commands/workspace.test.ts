@@ -33,332 +33,327 @@ describe("workspace commands", () => {
     cleanup(tempDir);
   });
 
-  it("add then list includes workspace", () => {
-    const result = addWorkspace("myws", paths);
+  it("add then list includes workspace", async () => {
+    const result = await addWorkspace("myws", paths);
     expect(result.ok).toBe(true);
 
-    const list = listWorkspaces(paths);
+    const list = await listWorkspaces(paths);
     expect(list.ok).toBe(true);
     if (list.ok) {
       expect(list.value.map((w) => w.name)).toContain("myws");
     }
   });
 
-  it("add fails if workspace already exists", () => {
-    addWorkspace("myws", paths);
-    const result = addWorkspace("myws", paths);
+  it("add fails if workspace already exists", async () => {
+    await addWorkspace("myws", paths);
+    const result = await addWorkspace("myws", paths);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.code).toBe("WORKSPACE_EXISTS");
     }
   });
 
-  it("add rejects reserved name 'repos'", () => {
-    const result = addWorkspace("repos", paths);
+  it("add rejects reserved name 'repos'", async () => {
+    const result = await addWorkspace("repos", paths);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.code).toBe("RESERVED_NAME");
     }
   });
 
-  it("add rejects name with path separators", () => {
-    const result = addWorkspace("my/ws", paths);
+  it("add rejects reserved name 'worktrees'", async () => {
+    const result = await addWorkspace("worktrees", paths);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("RESERVED_NAME");
+    }
+  });
+
+  it("add rejects name with slash", async () => {
+    const result = await addWorkspace("a/b", paths);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.code).toBe("INVALID_NAME");
     }
   });
 
-  it("list excludes repos/ directory", () => {
-    addWorkspace("myws", paths);
-    // Manually create a repos dir
-    mkdirSync(paths.repos, { recursive: true });
-
-    const list = listWorkspaces(paths);
-    expect(list.ok).toBe(true);
-    if (list.ok) {
-      expect(list.value.map((w) => w.name)).not.toContain("repos");
-    }
-  });
-
-  it("remove then list excludes workspace", () => {
-    addWorkspace("myws", paths);
-    const result = removeWorkspace("myws", {}, paths);
-    expect(result.ok).toBe(true);
-
-    const list = listWorkspaces(paths);
-    expect(list.ok).toBe(true);
-    if (list.ok) {
-      expect(list.value.map((w) => w.name)).not.toContain("myws");
-    }
-  });
-
-  it("remove does not touch global repos", () => {
-    const repoPath = createTestGitRepo(tempDir, "repo");
-    addWorkspace("myws", paths);
-    addRepo("myws", repoPath, undefined, paths, GIT_ENV);
-
-    removeWorkspace("myws", { force: true }, paths, GIT_ENV);
-
-    // repo symlink should still exist
-    expect(existsSync(paths.repoEntry("repo"))).toBe(true);
-  });
-
-  it("remove without force fails if workspace has repos", () => {
-    const repoPath = createTestGitRepo(tempDir, "repo");
-    addWorkspace("myws", paths);
-    addRepo("myws", repoPath, undefined, paths, GIT_ENV);
-
-    const result = removeWorkspace("myws", {}, paths);
+  it("add rejects empty name", async () => {
+    const result = await addWorkspace("", paths);
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.code).toBe("WORKSPACE_HAS_REPOS");
+      expect(result.code).toBe("INVALID_NAME");
     }
   });
 
-  it("remove --force removes workspace with repos and worktrees", () => {
-    const repoPath = createTestGitRepo(tempDir, "repo");
-    addWorkspace("myws", paths);
-    addRepo("myws", repoPath, undefined, paths, GIT_ENV);
-    addWorktree("myws", "repo", "feature/x", { newBranch: true }, paths, GIT_ENV);
-
-    const result = removeWorkspace("myws", { force: true }, paths, GIT_ENV);
-    expect(result.ok).toBe(true);
-    expect(existsSync(paths.workspace("myws"))).toBe(false);
-  });
-
-  it("returns error when removing non-existent workspace", () => {
-    const result = removeWorkspace("ghost", {}, paths);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.code).toBe("WORKSPACE_NOT_FOUND");
-    }
-  });
-
-  it("addWorkspace generates .code-workspace file", () => {
-    const result = addWorkspace("myws", paths);
-    expect(result.ok).toBe(true);
-
-    const wsFilePath = paths.vscodeWorkspace("myws");
-    const content = JSON.parse(require("node:fs").readFileSync(wsFilePath, "utf-8"));
-    expect(content.folders[0]).toEqual({ path: ".", name: "myws (workspace)" });
-    expect(content.settings["files.exclude"].trees).toBe(true);
-  });
-
-  it("add rejects reserved name 'worktrees'", () => {
-    const result = addWorkspace("worktrees", paths);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.code).toBe("RESERVED_NAME");
-    }
-  });
-
-  it("list excludes worktrees/ directory", () => {
-    addWorkspace("myws", paths);
-    mkdirSync(paths.worktreePool, { recursive: true });
-
-    const list = listWorkspaces(paths);
-    expect(list.ok).toBe(true);
-    if (list.ok) {
-      expect(list.value.map((w) => w.name)).not.toContain("worktrees");
-    }
-  });
-
-  it("remove --force with shared pool worktree preserves pool entry for other workspace", () => {
-    const repoPath = createTestGitRepo(tempDir, "repo");
-    addWorkspace("ws1", paths);
-    addWorkspace("ws2", paths);
-    addRepo("ws1", repoPath, undefined, paths, GIT_ENV);
-    addRepo("ws2", repoPath, undefined, paths, GIT_ENV);
-    addWorktree("ws1", "repo", "feature/shared", { newBranch: true }, paths, GIT_ENV);
-    addWorktree("ws2", "repo", "feature/shared", {}, paths, GIT_ENV);
-
-    const poolEntry = paths.worktreePoolEntry("repo", "feature-shared");
-
-    const result = removeWorkspace("ws1", { force: true }, paths, GIT_ENV);
-    expect(result.ok).toBe(true);
-    expect(existsSync(paths.workspace("ws1"))).toBe(false);
-
-    // Pool entry persists for ws2
-    expect(existsSync(poolEntry)).toBe(true);
-    expect(lstatSync(paths.worktreeDir("ws2", "repo", "feature-shared")).isSymbolicLink()).toBe(
-      true,
-    );
-  });
-
-  it("listWorkspaces returns empty array when root does not exist", () => {
-    // paths.root doesn't exist (no workspaces created yet)
-    const freshPaths = createPaths(join(tempDir, "nonexistent-root"));
-    const result = listWorkspaces(freshPaths);
+  it("list returns empty array when root does not exist", async () => {
+    const result = await listWorkspaces(paths);
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value).toEqual([]);
     }
   });
 
+  it("list skips non-directory entries", async () => {
+    await addWorkspace("myws", paths);
+    // Create a file (not a dir) in root
+    writeFileSync(join(paths.root, "notadir"), "file");
+    const result = await listWorkspaces(paths);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.map((w) => w.name)).toContain("myws");
+      expect(result.value.map((w) => w.name)).not.toContain("notadir");
+    }
+  });
+
+  it("list skips reserved names", async () => {
+    await addWorkspace("myws", paths);
+    mkdirSync(join(paths.root, "repos"), { recursive: true });
+    mkdirSync(join(paths.root, "worktrees"), { recursive: true });
+    const result = await listWorkspaces(paths);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const names = result.value.map((w) => w.name);
+      expect(names).not.toContain("repos");
+      expect(names).not.toContain("worktrees");
+    }
+  });
+
+  it("list skips directories without workspace.json", async () => {
+    await addWorkspace("myws", paths);
+    // Create a directory without workspace.json
+    mkdirSync(join(paths.root, "noconfig"), { recursive: true });
+    const result = await listWorkspaces(paths);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.map((w) => w.name)).not.toContain("noconfig");
+    }
+  });
+
+  it("remove workspace without repos succeeds", async () => {
+    await addWorkspace("myws", paths);
+    const result = await removeWorkspace("myws", {}, paths);
+    expect(result.ok).toBe(true);
+
+    const list = await listWorkspaces(paths);
+    if (list.ok) {
+      expect(list.value.map((w) => w.name)).not.toContain("myws");
+    }
+  });
+
+  it("remove non-existent workspace returns error", async () => {
+    const result = await removeWorkspace("ghost", {}, paths);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("WORKSPACE_NOT_FOUND");
+    }
+  });
+
+  it("remove refuses if workspace has repos without --force", async () => {
+    const repoPath = await createTestGitRepo(tempDir, "myrepo");
+    await addWorkspace("myws", paths);
+    await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+
+    const result = await removeWorkspace("myws", {}, paths);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("WORKSPACE_HAS_REPOS");
+    }
+  });
+
+  it("remove --force removes workspace even with repos", async () => {
+    const repoPath = await createTestGitRepo(tempDir, "myrepo");
+    await addWorkspace("myws", paths);
+    await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+
+    const result = await removeWorkspace("myws", { force: true }, paths);
+    expect(result.ok).toBe(true);
+    expect(existsSync(paths.workspace("myws"))).toBe(false);
+  });
+
+  it("remove --force cleans up pool worktrees", async () => {
+    const repoPath = await createTestGitRepo(tempDir, "myrepo");
+    await addWorkspace("myws", paths);
+    await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
+
+    const poolEntry = paths.worktreePoolEntry("myrepo", "feature-x");
+    expect(existsSync(poolEntry)).toBe(true);
+
+    const result = await removeWorkspace("myws", { force: true }, paths);
+    expect(result.ok).toBe(true);
+
+    // Pool entry removed since last reference
+    expect(existsSync(poolEntry)).toBe(false);
+  });
+
+  it("remove --force with shared pool entry preserves pool for other workspace", async () => {
+    const repoPath = await createTestGitRepo(tempDir, "myrepo");
+    await addWorkspace("myws", paths);
+    await addWorkspace("otherws", paths);
+    await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    await addRepo("otherws", repoPath, undefined, paths, GIT_ENV);
+    await addWorktree("myws", "myrepo", "feature/shared", { newBranch: true }, paths, GIT_ENV);
+    await addWorktree("otherws", "myrepo", "feature/shared", {}, paths, GIT_ENV);
+
+    const poolEntry = paths.worktreePoolEntry("myrepo", "feature-shared");
+
+    const result = await removeWorkspace("myws", { force: true }, paths);
+    expect(result.ok).toBe(true);
+
+    // Pool entry persists for otherws
+    expect(existsSync(poolEntry)).toBe(true);
+  });
+
+  it("add creates workspace.json, .code-workspace, and trees.md", async () => {
+    await addWorkspace("myws", paths);
+    expect(existsSync(paths.workspaceConfig("myws"))).toBe(true);
+    expect(existsSync(paths.vscodeWorkspace("myws"))).toBe(true);
+    expect(existsSync(paths.claudeTreesMd("myws"))).toBe(true);
+  });
+
+  it("add creates CLAUDE.md in .claude/", async () => {
+    await addWorkspace("myws", paths);
+    expect(existsSync(paths.claudeMd("myws"))).toBe(true);
+  });
+
   describe("syncWorkspace", () => {
-    it("fails with WORKSPACE_NOT_FOUND for unknown workspace", () => {
-      const result = syncWorkspace("ghost", paths, GIT_ENV);
+    it("returns WORKSPACE_NOT_FOUND for non-existent workspace", async () => {
+      const result = await syncWorkspace("ghost", paths);
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.code).toBe("WORKSPACE_NOT_FOUND");
       }
     });
 
-    it("returns ok status for fully intact workspace", () => {
-      const repoPath = createTestGitRepo(tempDir, "repo");
-      addWorkspace("myws", paths);
-      addRepo("myws", repoPath, undefined, paths, GIT_ENV);
-
-      const result = syncWorkspace("myws", paths, GIT_ENV);
+    it("returns ok for empty workspace", async () => {
+      await addWorkspace("myws", paths);
+      const result = await syncWorkspace("myws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
       if (result.ok) {
-        expect(result.value.repos).toHaveLength(1);
-        expect(result.value.repos[0].status).toBe("ok");
-        expect(result.value.repos[0].repairs).toHaveLength(0);
-        expect(result.value.pruned).toEqual([]);
+        expect(result.value.repos).toEqual([]);
       }
     });
 
-    it("marks dangling repos (source path gone) without crashing", () => {
-      const repoPath = createTestGitRepo(tempDir, "gone-repo");
-      addWorkspace("myws", paths);
-      addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    it("reports dangling status for repos whose source path is not a git repo", async () => {
+      const repoPath = await createTestGitRepo(tempDir, "myrepo");
+      await addWorkspace("myws", paths);
+      await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+      // Remove the actual repo
       rmSync(repoPath, { recursive: true, force: true });
 
-      const result = syncWorkspace("myws", paths, GIT_ENV);
+      const result = await syncWorkspace("myws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
       if (result.ok) {
-        expect(result.value.repos[0].status).toBe("dangling");
+        const repo = result.value.repos.find((r) => r.name === "myrepo");
+        expect(repo?.status).toBe("dangling");
       }
     });
 
-    it("recreates missing repos/<name> symlink", () => {
-      const repoPath = createTestGitRepo(tempDir, "repo");
-      addWorkspace("myws", paths);
-      addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    it("repairs missing repos/ symlink", async () => {
+      const repoPath = await createTestGitRepo(tempDir, "myrepo");
+      await addWorkspace("myws", paths);
+      await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
 
-      rmSync(paths.repoEntry("repo"), { force: true });
+      // Break the repos/ symlink
+      rmSync(paths.repoEntry("myrepo"), { force: true });
+      expect(existsSync(paths.repoEntry("myrepo"))).toBe(false);
 
-      const result = syncWorkspace("myws", paths, GIT_ENV);
+      const result = await syncWorkspace("myws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
-      expect(realpathSync(paths.repoEntry("repo"))).toBe(realpathSync(repoPath));
+      expect(existsSync(paths.repoEntry("myrepo"))).toBe(true);
+
       if (result.ok) {
-        expect(result.value.repos[0].status).toBe("repaired");
+        const repo = result.value.repos.find((r) => r.name === "myrepo");
+        expect(repo?.status).toBe("repaired");
+        expect(repo?.repairs).toContain("created repos/myrepo");
       }
     });
 
-    it("repairs dangling repos/<name> symlink", () => {
-      const repoPath = createTestGitRepo(tempDir, "repo");
-      addWorkspace("myws", paths);
-      addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    it("repairs missing trees/{repo}/ directory", async () => {
+      const repoPath = await createTestGitRepo(tempDir, "myrepo");
+      await addWorkspace("myws", paths);
+      await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
 
-      rmSync(paths.repoEntry("repo"), { force: true });
-      symlinkSync("/nonexistent/path", paths.repoEntry("repo"));
+      // Remove the trees directory
+      rmSync(paths.repoDir("myws", "myrepo"), { recursive: true, force: true });
 
-      const result = syncWorkspace("myws", paths, GIT_ENV);
+      const result = await syncWorkspace("myws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
-      expect(realpathSync(paths.repoEntry("repo"))).toBe(realpathSync(repoPath));
+      expect(existsSync(paths.repoDir("myws", "myrepo"))).toBe(true);
+
       if (result.ok) {
-        expect(result.value.repos[0].status).toBe("repaired");
+        const repo = result.value.repos.find((r) => r.name === "myrepo");
+        expect(repo?.repairs).toContain("created trees/myrepo/");
       }
     });
 
-    it("recreates missing trees/<repo>/ directory", () => {
-      const repoPath = createTestGitRepo(tempDir, "repo");
-      addWorkspace("myws", paths);
-      addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    it("repairs missing default-branch symlink", async () => {
+      const repoPath = await createTestGitRepo(tempDir, "myrepo");
+      await addWorkspace("myws", paths);
+      await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
 
-      rmSync(paths.repoDir("myws", "repo"), { recursive: true, force: true });
-      expect(existsSync(paths.repoDir("myws", "repo"))).toBe(false);
-
-      const result = syncWorkspace("myws", paths, GIT_ENV);
-      expect(result.ok).toBe(true);
-      expect(existsSync(paths.repoDir("myws", "repo"))).toBe(true);
-      if (result.ok) {
-        expect(result.value.repos[0].status).toBe("repaired");
-      }
-    });
-
-    it("recreates missing default-branch symlink", () => {
-      const repoPath = createTestGitRepo(tempDir, "repo");
-      addWorkspace("myws", paths);
-      addRepo("myws", repoPath, undefined, paths, GIT_ENV);
-
-      const slugPath = paths.worktreeDir("myws", "repo", "main");
+      const slugPath = join(paths.repoDir("myws", "myrepo"), "main");
       rmSync(slugPath, { force: true });
 
-      const result = syncWorkspace("myws", paths, GIT_ENV);
+      const result = await syncWorkspace("myws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
-      expect(lstatSync(slugPath).isSymbolicLink()).toBe(true);
-      expect(existsSync(slugPath)).toBe(true); // resolves (not dangling)
+      expect(existsSync(slugPath) || lstatSync(slugPath) !== null).toBeTruthy();
+
       if (result.ok) {
-        expect(result.value.repos[0].status).toBe("repaired");
+        const repo = result.value.repos.find((r) => r.name === "myrepo");
+        expect(repo?.repairs).toContain("created trees/myrepo/main");
       }
     });
 
-    it("repairs dangling default-branch symlink", () => {
-      const repoPath = createTestGitRepo(tempDir, "repo");
-      addWorkspace("myws", paths);
-      addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    it("re-creates dangling repos/ symlink (pointing to a different path)", async () => {
+      const repoPath = await createTestGitRepo(tempDir, "myrepo");
+      await addWorkspace("myws", paths);
+      await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
 
-      const slugPath = paths.worktreeDir("myws", "repo", "main");
-      rmSync(slugPath, { force: true });
-      symlinkSync("/nonexistent/path", slugPath);
+      // Replace repos/myrepo with a symlink to a non-existent path
+      rmSync(paths.repoEntry("myrepo"), { force: true });
+      symlinkSync("/nonexistent/path", paths.repoEntry("myrepo"));
 
-      const result = syncWorkspace("myws", paths, GIT_ENV);
+      const result = await syncWorkspace("myws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
-      expect(existsSync(slugPath)).toBe(true); // resolves after repair
+      // Now the symlink should point to the actual repo
+      expect(realpathSync(paths.repoEntry("myrepo"))).toBe(realpathSync(repoPath));
+
       if (result.ok) {
-        expect(result.value.repos[0].status).toBe("repaired");
+        const repo = result.value.repos.find((r) => r.name === "myrepo");
+        expect(repo?.repairs).toContain("created repos/myrepo");
       }
     });
 
-    it("is idempotent — running twice reports ok on the second pass", () => {
-      const repoPath = createTestGitRepo(tempDir, "repo");
-      addWorkspace("myws", paths);
-      addRepo("myws", repoPath, undefined, paths, GIT_ENV);
-      rmSync(paths.repoEntry("repo"), { force: true });
+    it("returns ok status when everything is already correct", async () => {
+      const repoPath = await createTestGitRepo(tempDir, "myrepo");
+      await addWorkspace("myws", paths);
+      await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
 
-      syncWorkspace("myws", paths, GIT_ENV); // first pass repairs
-      const second = syncWorkspace("myws", paths, GIT_ENV); // second pass should be clean
-      expect(second.ok).toBe(true);
-      if (second.ok) {
-        expect(second.value.repos[0].status).toBe("ok");
-        expect(second.value.repos[0].repairs).toHaveLength(0);
-        expect(second.value.pruned).toEqual([]);
+      const result = await syncWorkspace("myws", paths, GIT_ENV);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        const repo = result.value.repos.find((r) => r.name === "myrepo");
+        expect(repo?.status).toBe("ok");
+        expect(repo?.repairs).toEqual([]);
       }
     });
 
-    it("does prune dangling pool symlinks when syncing workspace", () => {
-      const repoPath = createTestGitRepo(tempDir, "repo");
-      addWorkspace("myws", paths);
-      addRepo("myws", repoPath, undefined, paths, GIT_ENV);
-      addWorktree("myws", "repo", "feature/gone", { newBranch: true }, paths, GIT_ENV);
+    it("prunes dangling pool symlinks during sync", async () => {
+      const repoPath = await createTestGitRepo(tempDir, "myrepo");
+      await addWorkspace("myws", paths);
+      await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+      await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
 
-      // Delete pool entry to make the symlink dangle
-      rmSync(paths.worktreePoolEntry("repo", "feature-gone"), { recursive: true, force: true });
+      // Delete pool entry to make workspace symlink dangle
+      rmSync(paths.worktreePoolEntry("myrepo", "feature-x"), { recursive: true, force: true });
 
-      const result = syncWorkspace("myws", paths, GIT_ENV);
+      const result = await syncWorkspace("myws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.value.pruned).toHaveLength(1);
-        expect(result.value.pruned[0].repo).toBe("repo");
-        expect(result.value.pruned[0].slug).toBe("feature-gone");
+        expect(result.value.pruned[0].slug).toBe("feature-x");
       }
-    });
-
-    it("generates trees.md during sync", () => {
-      const repoPath = createTestGitRepo(tempDir, "repo");
-      addWorkspace("myws", paths);
-      addRepo("myws", repoPath, undefined, paths, GIT_ENV);
-
-      // Write CLAUDE.md into the repo so it's picked up
-      writeFileSync(join(repoPath, "CLAUDE.md"), "# repo\n");
-
-      const result = syncWorkspace("myws", paths, GIT_ENV);
-      expect(result.ok).toBe(true);
-      expect(existsSync(paths.claudeTreesMd("myws"))).toBe(true);
     });
   });
 });

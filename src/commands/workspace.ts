@@ -1,14 +1,14 @@
 import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readdirSync,
-  realpathSync,
-  rmSync,
-  statSync,
-  symlinkSync,
-  unlinkSync,
-} from "node:fs";
+  exists,
+  lstat,
+  mkdir,
+  readdir,
+  realpath,
+  rm,
+  stat,
+  symlink,
+  unlink,
+} from "node:fs/promises";
 import { dirname, relative } from "node:path";
 import { type Paths } from "../constants";
 import { type Result, ok, err, type WorkspaceConfig } from "../types";
@@ -44,69 +44,69 @@ export interface WorkspaceInfo {
   path: string;
 }
 
-export function addWorkspace(name: string, paths: Paths): Result<WorkspaceInfo> {
+export async function addWorkspace(name: string, paths: Paths): Promise<Result<WorkspaceInfo>> {
   const validation = validateName(name);
   if (!validation.ok) return validation;
 
   const wsPath = paths.workspace(name);
-  if (existsSync(wsPath)) {
+  if (await exists(wsPath)) {
     return err(`Workspace "${name}" already exists`, "WORKSPACE_EXISTS");
   }
 
-  mkdirSync(wsPath, { recursive: true });
-  mkdirSync(paths.workspaceDotClaude(name), { recursive: true });
+  await mkdir(wsPath, { recursive: true });
+  await mkdir(paths.workspaceDotClaude(name), { recursive: true });
 
   const config: WorkspaceConfig = { name, repos: [] };
-  const writeResult = writeConfig(paths.workspaceConfig(name), config);
+  const writeResult = await writeConfig(paths.workspaceConfig(name), config);
   if (!writeResult.ok) return writeResult;
 
-  const vscodeResult = generateVSCodeWorkspace(name, paths);
+  const vscodeResult = await generateVSCodeWorkspace(name, paths);
   if (!vscodeResult.ok) return vscodeResult;
 
-  const claudeResult = generateClaudeFiles(name, paths);
+  const claudeResult = await generateClaudeFiles(name, paths);
   if (!claudeResult.ok) return claudeResult;
 
   return ok({ name, path: wsPath });
 }
 
-export function listWorkspaces(paths: Paths): Result<WorkspaceInfo[]> {
-  if (!existsSync(paths.root)) {
+export async function listWorkspaces(paths: Paths): Promise<Result<WorkspaceInfo[]>> {
+  if (!(await exists(paths.root))) {
     return ok([]);
   }
 
-  const entries = readdirSync(paths.root);
+  const entries = await readdir(paths.root);
   const workspaces: WorkspaceInfo[] = [];
 
   for (const entry of entries) {
     if (RESERVED_NAMES.has(entry)) continue;
     const wsPath = paths.workspace(entry);
     try {
-      const stat = statSync(wsPath);
-      if (!stat.isDirectory()) continue;
+      const s = await stat(wsPath);
+      if (!s.isDirectory()) continue;
     } catch {
       continue;
     }
     const configPath = paths.workspaceConfig(entry);
-    if (!existsSync(configPath)) continue;
+    if (!(await exists(configPath))) continue;
     workspaces.push({ name: entry, path: wsPath });
   }
 
   return ok(workspaces);
 }
 
-export function removeWorkspace(
+export async function removeWorkspace(
   name: string,
   options: { force?: boolean },
   paths: Paths,
   env?: GitEnv,
-): Result<void> {
+): Promise<Result<void>> {
   const wsPath = paths.workspace(name);
-  if (!existsSync(wsPath)) {
+  if (!(await exists(wsPath))) {
     return err(`Workspace "${name}" not found`, "WORKSPACE_NOT_FOUND");
   }
 
   const configPath = paths.workspaceConfig(name);
-  const configResult = readConfig(configPath);
+  const configResult = await readConfig(configPath);
   if (!configResult.ok) {
     return configResult;
   }
@@ -125,20 +125,20 @@ export function removeWorkspace(
 
     for (const repo of config.repos) {
       const repoDir = paths.repoDir(name, repo.name);
-      if (!existsSync(repoDir)) continue;
+      if (!(await exists(repoDir))) continue;
 
       let entries: string[];
       try {
-        entries = readdirSync(repoDir);
+        entries = await readdir(repoDir);
       } catch {
         continue;
       }
 
       for (const slug of entries) {
         const wtPath = paths.worktreeDir(name, repo.name, slug);
-        const kind = classifyWorktreeEntry(wtPath, paths);
+        const kind = await classifyWorktreeEntry(wtPath, paths);
         if (kind === "pool") {
-          const removeResult = removePoolWorktreeReference(
+          const removeResult = await removePoolWorktreeReference(
             name,
             repo.name,
             slug,
@@ -150,9 +150,9 @@ export function removeWorkspace(
             errors.push(`${repo.name}/${slug}: ${removeResult.error}`);
           }
         } else if (kind === "legacy") {
-          const repoPathResult = resolveRepoPath(repo.name, paths);
+          const repoPathResult = await resolveRepoPath(repo.name, paths);
           if (!repoPathResult.ok) continue; // dangling — skip
-          const removeResult = removeWorktree(repoPathResult.value, wtPath, true, env);
+          const removeResult = await removeWorktree(repoPathResult.value, wtPath, true, env);
           if (!removeResult.ok) {
             errors.push(`${repo.name}/${slug}: ${removeResult.error}`);
           }
@@ -169,7 +169,7 @@ export function removeWorkspace(
     }
   }
 
-  rmSync(wsPath, { recursive: true, force: true });
+  await rm(wsPath, { recursive: true, force: true });
   return ok(undefined);
 }
 
@@ -184,13 +184,17 @@ export interface SyncResult {
   pruned: PruneEntry[];
 }
 
-export function syncWorkspace(name: string, paths: Paths, env?: GitEnv): Result<SyncResult> {
+export async function syncWorkspace(
+  name: string,
+  paths: Paths,
+  env?: GitEnv,
+): Promise<Result<SyncResult>> {
   const wsPath = paths.workspace(name);
-  if (!existsSync(wsPath)) {
+  if (!(await exists(wsPath))) {
     return err(`Workspace "${name}" not found`, "WORKSPACE_NOT_FOUND");
   }
 
-  const configResult = readConfig(paths.workspaceConfig(name));
+  const configResult = await readConfig(paths.workspaceConfig(name));
   if (!configResult.ok) return configResult;
 
   const config = configResult.value;
@@ -199,7 +203,7 @@ export function syncWorkspace(name: string, paths: Paths, env?: GitEnv): Result<
   for (const repo of config.repos) {
     const repairs: string[] = [];
 
-    if (!isGitRepo(repo.path)) {
+    if (!(await isGitRepo(repo.path))) {
       repoResults.push({ name: repo.name, status: "dangling", repairs: [] });
       continue;
     }
@@ -208,35 +212,35 @@ export function syncWorkspace(name: string, paths: Paths, env?: GitEnv): Result<
     const treePath = paths.repoEntry(repo.name);
     let repoLinkOk = false;
     try {
-      lstatSync(treePath);
+      await lstat(treePath);
       try {
-        const existing = realpathSync(treePath);
-        const expected = realpathSync(repo.path);
+        const existing = await realpath(treePath);
+        const expected = await realpath(repo.path);
         repoLinkOk = existing === expected;
       } catch {
         // dangling symlink
       }
       if (!repoLinkOk) {
-        unlinkSync(treePath);
+        await unlink(treePath);
       }
     } catch {
       // doesn't exist
     }
     if (!repoLinkOk) {
-      mkdirSync(paths.repos, { recursive: true });
-      symlinkSync(repo.path, treePath);
+      await mkdir(paths.repos, { recursive: true });
+      await symlink(repo.path, treePath);
       repairs.push(`created repos/${repo.name}`);
     }
 
     // Ensure trees/<repo>/ directory exists
     const repoDirPath = paths.repoDir(name, repo.name);
-    if (!existsSync(repoDirPath)) {
-      mkdirSync(repoDirPath, { recursive: true });
+    if (!(await exists(repoDirPath))) {
+      await mkdir(repoDirPath, { recursive: true });
       repairs.push(`created trees/${repo.name}/`);
     }
 
     // Ensure default-branch symlink exists
-    const branchResult = getDefaultBranch(repo.path, env);
+    const branchResult = await getDefaultBranch(repo.path, env);
     if (!branchResult.ok) {
       repoResults.push({ name: repo.name, status: "dangling", repairs });
       continue;
@@ -246,31 +250,31 @@ export function syncWorkspace(name: string, paths: Paths, env?: GitEnv): Result<
     const slugPath = paths.worktreeDir(name, repo.name, slug);
     let slugOk = false;
     try {
-      lstatSync(slugPath);
+      await lstat(slugPath);
       try {
-        realpathSync(slugPath);
+        await realpath(slugPath);
         slugOk = true;
       } catch {
-        unlinkSync(slugPath);
+        await unlink(slugPath);
       }
     } catch {
       // doesn't exist
     }
     if (!slugOk) {
-      symlinkSync(relative(dirname(slugPath), paths.repoEntry(repo.name)), slugPath);
+      await symlink(relative(dirname(slugPath), paths.repoEntry(repo.name)), slugPath);
       repairs.push(`created trees/${repo.name}/${slug}`);
     }
 
     repoResults.push({ name: repo.name, status: repairs.length > 0 ? "repaired" : "ok", repairs });
   }
 
-  const vscodeResult = generateVSCodeWorkspace(name, paths);
+  const vscodeResult = await generateVSCodeWorkspace(name, paths);
   if (!vscodeResult.ok) return vscodeResult;
 
-  const claudeResult = generateClaudeFiles(name, paths, env);
+  const claudeResult = await generateClaudeFiles(name, paths, env);
   if (!claudeResult.ok) return claudeResult;
 
-  const pruneResult = pruneWorktrees(name, paths, env);
+  const pruneResult = await pruneWorktrees(name, paths, env);
   const pruned = pruneResult.ok ? pruneResult.value.pruned : [];
 
   return ok({ repos: repoResults, pruned });

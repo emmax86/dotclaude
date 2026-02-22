@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFile, writeFile } from "node:fs/promises";
 import {
   type Result,
   ok,
@@ -8,10 +8,10 @@ import {
   type WorktreePool,
 } from "../types";
 
-export function readConfig(configPath: string): Result<WorkspaceConfig> {
+export async function readConfig(configPath: string): Promise<Result<WorkspaceConfig>> {
   let raw: string;
   try {
-    raw = readFileSync(configPath, "utf-8");
+    raw = await readFile(configPath, "utf-8");
   } catch {
     return err("Config file not found: " + configPath, "CONFIG_NOT_FOUND");
   }
@@ -35,17 +35,20 @@ export function readConfig(configPath: string): Result<WorkspaceConfig> {
   return ok(parsed as WorkspaceConfig);
 }
 
-export function writeConfig(configPath: string, config: WorkspaceConfig): Result<void> {
+export async function writeConfig(
+  configPath: string,
+  config: WorkspaceConfig,
+): Promise<Result<void>> {
   try {
-    writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
+    await writeFile(configPath, JSON.stringify(config, null, 2) + "\n");
     return ok(undefined);
   } catch (e) {
     return err(String(e), "CONFIG_WRITE_FAILED");
   }
 }
 
-export function addRepoToConfig(configPath: string, repo: RepoEntry): Result<void> {
-  const result = readConfig(configPath);
+export async function addRepoToConfig(configPath: string, repo: RepoEntry): Promise<Result<void>> {
+  const result = await readConfig(configPath);
   if (!result.ok) return result;
 
   const config = result.value;
@@ -58,8 +61,11 @@ export function addRepoToConfig(configPath: string, repo: RepoEntry): Result<voi
   return writeConfig(configPath, config);
 }
 
-export function removeRepoFromConfig(configPath: string, name: string): Result<void> {
-  const result = readConfig(configPath);
+export async function removeRepoFromConfig(
+  configPath: string,
+  name: string,
+): Promise<Result<void>> {
+  const result = await readConfig(configPath);
   if (!result.ok) return result;
 
   const config = result.value;
@@ -67,10 +73,10 @@ export function removeRepoFromConfig(configPath: string, name: string): Result<v
   return writeConfig(configPath, config);
 }
 
-export function readPoolConfig(path: string): Result<WorktreePool> {
+export async function readPoolConfig(path: string): Promise<Result<WorktreePool>> {
   let raw: string;
   try {
-    raw = readFileSync(path, "utf-8");
+    raw = await readFile(path, "utf-8");
   } catch {
     return ok({});
   }
@@ -89,22 +95,22 @@ export function readPoolConfig(path: string): Result<WorktreePool> {
   return ok(parsed as WorktreePool);
 }
 
-export function writePoolConfig(path: string, pool: WorktreePool): Result<void> {
+export async function writePoolConfig(path: string, pool: WorktreePool): Promise<Result<void>> {
   try {
-    writeFileSync(path, JSON.stringify(pool, null, 2) + "\n");
+    await writeFile(path, JSON.stringify(pool, null, 2) + "\n");
     return ok(undefined);
   } catch (e) {
     return err(String(e), "POOL_CONFIG_WRITE_FAILED");
   }
 }
 
-export function addPoolReference(
+export async function addPoolReference(
   path: string,
   repo: string,
   slug: string,
   workspace: string,
-): Result<void> {
-  const result = readPoolConfig(path);
+): Promise<Result<void>> {
+  const result = await readPoolConfig(path);
   if (!result.ok) return result;
 
   const pool = result.value;
@@ -116,13 +122,13 @@ export function addPoolReference(
   return writePoolConfig(path, pool);
 }
 
-export function removePoolReference(
+export async function removePoolReference(
   path: string,
   repo: string,
   slug: string,
   workspace: string,
-): Result<{ remaining: number }> {
-  const result = readPoolConfig(path);
+): Promise<Result<{ remaining: number }>> {
+  const result = await readPoolConfig(path);
   if (!result.ok) return result;
 
   const pool = result.value;
@@ -146,17 +152,17 @@ export function removePoolReference(
     }
   }
 
-  const writeResult = writePoolConfig(path, pool);
+  const writeResult = await writePoolConfig(path, pool);
   if (!writeResult.ok) return writeResult;
   return ok({ remaining });
 }
 
-export function getPoolSlugsForWorkspace(
+export async function getPoolSlugsForWorkspace(
   path: string,
   repo: string,
   workspace: string,
-): Result<string[]> {
-  const result = readPoolConfig(path);
+): Promise<Result<string[]>> {
+  const result = await readPoolConfig(path);
   if (!result.ok) return result;
 
   const pool = result.value;

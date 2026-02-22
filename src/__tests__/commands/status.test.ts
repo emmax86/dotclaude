@@ -13,37 +13,37 @@ describe("status command", () => {
   let repoPath: string;
   let paths: ReturnType<typeof createPaths>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tempDir = createTestDir();
-    repoPath = createTestGitRepo(tempDir, "myrepo");
+    repoPath = await createTestGitRepo(tempDir, "myrepo");
     paths = createPaths(join(tempDir, "workspaces"));
-    addWorkspace("myws", paths);
-    addRepo("myws", repoPath, undefined, paths, GIT_ENV);
-    addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
+    await addWorkspace("myws", paths);
+    await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
   });
 
   afterEach(() => {
     cleanup(tempDir);
   });
 
-  it("shows workspace name", () => {
-    const result = getStatus("myws", paths);
+  it("shows workspace name", async () => {
+    const result = await getStatus("myws", paths);
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.name).toBe("myws");
     }
   });
 
-  it("shows repo count > 0", () => {
-    const result = getStatus("myws", paths);
+  it("shows repo count > 0", async () => {
+    const result = await getStatus("myws", paths);
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.repos.length).toBeGreaterThan(0);
     }
   });
 
-  it("shows worktree list per repo", () => {
-    const result = getStatus("myws", paths);
+  it("shows worktree list per repo", async () => {
+    const result = await getStatus("myws", paths);
     expect(result.ok).toBe(true);
     if (result.ok) {
       const repo = result.value.repos.find((r) => r.name === "myrepo");
@@ -56,10 +56,10 @@ describe("status command", () => {
     }
   });
 
-  it("flags dangling symlinks", () => {
+  it("flags dangling symlinks", async () => {
     // Remove repo to make dangling
     rmSync(repoPath, { recursive: true, force: true });
-    const result = getStatus("myws", paths);
+    const result = await getStatus("myws", paths);
     expect(result.ok).toBe(true);
     if (result.ok) {
       const repo = result.value.repos.find((r) => r.name === "myrepo");
@@ -67,18 +67,18 @@ describe("status command", () => {
     }
   });
 
-  it("returns WORKSPACE_NOT_FOUND for non-existent workspace", () => {
-    const result = getStatus("ghost", paths);
+  it("returns WORKSPACE_NOT_FOUND for non-existent workspace", async () => {
+    const result = await getStatus("ghost", paths);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.code).toBe("WORKSPACE_NOT_FOUND");
     }
   });
 
-  it("returns CONFIG_INVALID for corrupted workspace config", () => {
+  it("returns CONFIG_INVALID for corrupted workspace config", async () => {
     const { writeFileSync } = require("node:fs");
     writeFileSync(paths.workspaceConfig("myws"), "not-json");
-    const result = getStatus("myws", paths);
+    const result = await getStatus("myws", paths);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.code).toBe("CONFIG_INVALID");

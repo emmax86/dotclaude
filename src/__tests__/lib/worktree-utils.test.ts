@@ -17,61 +17,61 @@ describe("classifyWorktreeEntry", () => {
   let paths: ReturnType<typeof createPaths>;
   let repoPath: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tempDir = createTestDir();
     paths = createPaths(join(tempDir, "workspaces"));
-    repoPath = createTestGitRepo(tempDir, "myrepo");
-    addWorkspace("myws", paths);
-    addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    repoPath = await createTestGitRepo(tempDir, "myrepo");
+    await addWorkspace("myws", paths);
+    await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
   });
 
   afterEach(() => {
     cleanup(tempDir);
   });
 
-  it("returns 'pool' for pool symlink", () => {
-    addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
+  it("returns 'pool' for pool symlink", async () => {
+    await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
     const wtPath = paths.worktreeDir("myws", "myrepo", "feature-x");
-    expect(classifyWorktreeEntry(wtPath, paths)).toBe("pool");
+    expect(await classifyWorktreeEntry(wtPath, paths)).toBe("pool");
   });
 
-  it("returns 'linked' for default-branch symlink", () => {
+  it("returns 'linked' for default-branch symlink", async () => {
     // addRepo already created the default branch symlink
     const wtPath = paths.worktreeDir("myws", "myrepo", "main");
-    expect(classifyWorktreeEntry(wtPath, paths)).toBe("linked");
+    expect(await classifyWorktreeEntry(wtPath, paths)).toBe("linked");
   });
 
-  it("returns 'legacy' for real directory", () => {
+  it("returns 'legacy' for real directory", async () => {
     const dir = join(tempDir, "realdir");
     mkdirSync(dir);
-    expect(classifyWorktreeEntry(dir, paths)).toBe("legacy");
+    expect(await classifyWorktreeEntry(dir, paths)).toBe("legacy");
   });
 
-  it("returns null for non-existent path", () => {
-    expect(classifyWorktreeEntry(join(tempDir, "nonexistent"), paths)).toBe(null);
+  it("returns null for non-existent path", async () => {
+    expect(await classifyWorktreeEntry(join(tempDir, "nonexistent"), paths)).toBe(null);
   });
 
-  it("returns null for regular file", () => {
+  it("returns null for regular file", async () => {
     const file = join(tempDir, "file.txt");
     writeFileSync(file, "hello");
-    expect(classifyWorktreeEntry(file, paths)).toBe(null);
+    expect(await classifyWorktreeEntry(file, paths)).toBe(null);
   });
 
-  it("returns 'linked' for unknown symlink target (safe fallback)", () => {
+  it("returns 'linked' for unknown symlink target (safe fallback)", async () => {
     const wtPath = paths.worktreeDir("myws", "myrepo", "unknown-slug");
     mkdirSync(dirname(wtPath), { recursive: true });
     symlinkSync("/some/absolute/path", wtPath);
-    expect(classifyWorktreeEntry(wtPath, paths)).toBe("linked");
+    expect(await classifyWorktreeEntry(wtPath, paths)).toBe("linked");
   });
 
-  it("returns 'pool' for dangling pool symlink", () => {
-    addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
+  it("returns 'pool' for dangling pool symlink", async () => {
+    await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
     const wtPath = paths.worktreeDir("myws", "myrepo", "feature-x");
     // Delete the pool entry to make the workspace symlink dangle
     rmSync(paths.worktreePoolEntry("myrepo", "feature-x"), { recursive: true, force: true });
-    // classifyWorktreeEntry uses lstatSync (inspects symlink itself, not target)
-    // and readlinkSync (reads raw target string), so it still classifies as "pool"
-    expect(classifyWorktreeEntry(wtPath, paths)).toBe("pool");
+    // classifyWorktreeEntry uses lstat (inspects symlink itself, not target)
+    // and readlink (reads raw target string), so it still classifies as "pool"
+    expect(await classifyWorktreeEntry(wtPath, paths)).toBe("pool");
   });
 });
 
@@ -80,37 +80,37 @@ describe("resolveRepoPath", () => {
   let paths: ReturnType<typeof createPaths>;
   let repoPath: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tempDir = createTestDir();
     paths = createPaths(join(tempDir, "workspaces"));
-    repoPath = createTestGitRepo(tempDir, "myrepo");
-    addWorkspace("myws", paths);
-    addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    repoPath = await createTestGitRepo(tempDir, "myrepo");
+    await addWorkspace("myws", paths);
+    await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
   });
 
   afterEach(() => {
     cleanup(tempDir);
   });
 
-  it("resolves a valid repo symlink to its real path", () => {
-    const result = resolveRepoPath("myrepo", paths);
+  it("resolves a valid repo symlink to its real path", async () => {
+    const result = await resolveRepoPath("myrepo", paths);
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value).toBe(repoPath);
     }
   });
 
-  it("returns DANGLING_SYMLINK error when repo dir is removed", () => {
+  it("returns DANGLING_SYMLINK error when repo dir is removed", async () => {
     rmSync(repoPath, { recursive: true, force: true });
-    const result = resolveRepoPath("myrepo", paths);
+    const result = await resolveRepoPath("myrepo", paths);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.code).toBe("DANGLING_SYMLINK");
     }
   });
 
-  it("returns DANGLING_SYMLINK error for missing entry", () => {
-    const result = resolveRepoPath("nonexistent", paths);
+  it("returns DANGLING_SYMLINK error for missing entry", async () => {
+    const result = await resolveRepoPath("nonexistent", paths);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.code).toBe("DANGLING_SYMLINK");
@@ -123,23 +123,30 @@ describe("removePoolWorktreeReference", () => {
   let repoPath: string;
   let paths: ReturnType<typeof createPaths>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tempDir = createTestDir();
-    repoPath = createTestGitRepo(tempDir, "myrepo");
+    repoPath = await createTestGitRepo(tempDir, "myrepo");
     paths = createPaths(join(tempDir, "workspaces"));
-    addWorkspace("myws", paths);
-    addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    await addWorkspace("myws", paths);
+    await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
   });
 
   afterEach(() => {
     cleanup(tempDir);
   });
 
-  it("removes pool entry when it is the last reference", () => {
-    addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
+  it("removes pool entry when it is the last reference", async () => {
+    await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
     const poolEntry = paths.worktreePoolEntry("myrepo", "feature-x");
 
-    const result = removePoolWorktreeReference("myws", "myrepo", "feature-x", {}, paths, GIT_ENV);
+    const result = await removePoolWorktreeReference(
+      "myws",
+      "myrepo",
+      "feature-x",
+      {},
+      paths,
+      GIT_ENV,
+    );
     expect(result.ok).toBe(true);
 
     // Pool entry is gone (git worktree removed)
@@ -147,15 +154,15 @@ describe("removePoolWorktreeReference", () => {
     expect(existsSync(poolEntry)).toBe(false);
   });
 
-  it("preserves pool entry when other workspaces reference it", () => {
-    addWorkspace("otherws", paths);
-    addRepo("otherws", repoPath, undefined, paths, GIT_ENV);
-    addWorktree("myws", "myrepo", "feature/shared", { newBranch: true }, paths, GIT_ENV);
-    addWorktree("otherws", "myrepo", "feature/shared", {}, paths, GIT_ENV);
+  it("preserves pool entry when other workspaces reference it", async () => {
+    await addWorkspace("otherws", paths);
+    await addRepo("otherws", repoPath, undefined, paths, GIT_ENV);
+    await addWorktree("myws", "myrepo", "feature/shared", { newBranch: true }, paths, GIT_ENV);
+    await addWorktree("otherws", "myrepo", "feature/shared", {}, paths, GIT_ENV);
 
     const poolEntry = paths.worktreePoolEntry("myrepo", "feature-shared");
 
-    const result = removePoolWorktreeReference(
+    const result = await removePoolWorktreeReference(
       "myws",
       "myrepo",
       "feature-shared",
@@ -170,12 +177,19 @@ describe("removePoolWorktreeReference", () => {
     expect(existsSync(poolEntry)).toBe(true);
   });
 
-  it("handles dangling repo symlink — cleans up pool entry directly", () => {
-    addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
+  it("handles dangling repo symlink — cleans up pool entry directly", async () => {
+    await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
     // Remove actual repo to make it dangling
     rmSync(repoPath, { recursive: true, force: true });
 
-    const result = removePoolWorktreeReference("myws", "myrepo", "feature-x", {}, paths, GIT_ENV);
+    const result = await removePoolWorktreeReference(
+      "myws",
+      "myrepo",
+      "feature-x",
+      {},
+      paths,
+      GIT_ENV,
+    );
     expect(result.ok).toBe(true);
   });
 });

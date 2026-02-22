@@ -7,7 +7,11 @@ export function createTestDir(): string {
   return realpathSync(mkdtempSync(join(tmpdir(), "dotclaude-test-")));
 }
 
-export function createTestGitRepo(dir: string, name: string, defaultBranch = "main"): string {
+export async function createTestGitRepo(
+  dir: string,
+  name: string,
+  defaultBranch = "main",
+): Promise<string> {
   const repoPath = join(dir, name);
   mkdirSync(repoPath, { recursive: true });
 
@@ -35,7 +39,7 @@ export function createTestGitRepo(dir: string, name: string, defaultBranch = "ma
 
   // Create initial commit so HEAD is valid
   const readmePath = join(repoPath, "README.md");
-  Bun.write(readmePath, `# ${name}\n`);
+  await Bun.write(readmePath, `# ${name}\n`);
   run(["git", "add", "."]);
   run(["git", "commit", "-m", "Initial commit"]);
 

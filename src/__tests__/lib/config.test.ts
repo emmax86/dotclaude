@@ -30,29 +30,29 @@ describe("config", () => {
     cleanup(tempDir);
   });
 
-  it("write then read roundtrip", () => {
+  it("write then read roundtrip", async () => {
     const config = { name: "myws", repos: [] };
-    writeConfig(configPath, config);
-    const result = readConfig(configPath);
+    await writeConfig(configPath, config);
+    const result = await readConfig(configPath);
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value).toEqual(config);
     }
   });
 
-  it("read non-existent file returns error", () => {
-    const result = readConfig(join(tempDir, "nonexistent", "workspace.json"));
+  it("read non-existent file returns error", async () => {
+    const result = await readConfig(join(tempDir, "nonexistent", "workspace.json"));
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.code).toBe("CONFIG_NOT_FOUND");
     }
   });
 
-  it("addRepoToConfig appends a repo", () => {
-    writeConfig(configPath, { name: "myws", repos: [] });
-    const result = addRepoToConfig(configPath, { name: "mrepo", path: "/some/path" });
+  it("addRepoToConfig appends a repo", async () => {
+    await writeConfig(configPath, { name: "myws", repos: [] });
+    const result = await addRepoToConfig(configPath, { name: "mrepo", path: "/some/path" });
     expect(result.ok).toBe(true);
-    const config = readConfig(configPath);
+    const config = await readConfig(configPath);
     expect(config.ok).toBe(true);
     if (config.ok) {
       expect(config.value.repos).toHaveLength(1);
@@ -60,10 +60,10 @@ describe("config", () => {
     }
   });
 
-  it("addRepoToConfig deduplicates by name", () => {
-    writeConfig(configPath, { name: "myws", repos: [{ name: "mrepo", path: "/old" }] });
-    addRepoToConfig(configPath, { name: "mrepo", path: "/new" });
-    const config = readConfig(configPath);
+  it("addRepoToConfig deduplicates by name", async () => {
+    await writeConfig(configPath, { name: "myws", repos: [{ name: "mrepo", path: "/old" }] });
+    await addRepoToConfig(configPath, { name: "mrepo", path: "/new" });
+    const config = await readConfig(configPath);
     expect(config.ok).toBe(true);
     if (config.ok) {
       expect(config.value.repos).toHaveLength(1);
@@ -71,50 +71,50 @@ describe("config", () => {
     }
   });
 
-  it("removeRepoFromConfig removes a repo", () => {
-    writeConfig(configPath, {
+  it("removeRepoFromConfig removes a repo", async () => {
+    await writeConfig(configPath, {
       name: "myws",
       repos: [{ name: "mrepo", path: "/p" }],
     });
-    const result = removeRepoFromConfig(configPath, "mrepo");
+    const result = await removeRepoFromConfig(configPath, "mrepo");
     expect(result.ok).toBe(true);
-    const config = readConfig(configPath);
+    const config = await readConfig(configPath);
     if (config.ok) {
       expect(config.value.repos).toHaveLength(0);
     }
   });
 
-  it("removeRepoFromConfig handles missing repo gracefully", () => {
-    writeConfig(configPath, { name: "myws", repos: [] });
-    const result = removeRepoFromConfig(configPath, "nonexistent");
+  it("removeRepoFromConfig handles missing repo gracefully", async () => {
+    await writeConfig(configPath, { name: "myws", repos: [] });
+    const result = await removeRepoFromConfig(configPath, "nonexistent");
     expect(result.ok).toBe(true);
   });
 
-  it("invalid JSON returns error", () => {
+  it("invalid JSON returns error", async () => {
     writeFileSync(configPath, "not json");
-    const result = readConfig(configPath);
+    const result = await readConfig(configPath);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.code).toBe("CONFIG_INVALID");
     }
   });
 
-  it("valid JSON but wrong schema returns error", () => {
+  it("valid JSON but wrong schema returns error", async () => {
     writeFileSync(configPath, JSON.stringify({ wrong: "schema" }));
-    const result = readConfig(configPath);
+    const result = await readConfig(configPath);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.code).toBe("CONFIG_INVALID");
     }
   });
 
-  it("writeConfig returns error when path is not writable", () => {
+  it("writeConfig returns error when path is not writable", async () => {
     // Write to a path inside a non-writable directory
     const roDir = join(tempDir, "readonly");
     mkdirSync(roDir);
     chmodSync(roDir, 0o444);
     const roConfig = join(roDir, "workspace.json");
-    const result = writeConfig(roConfig, { name: "test", repos: [] });
+    const result = await writeConfig(roConfig, { name: "test", repos: [] });
     chmodSync(roDir, 0o755); // restore so cleanup works
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -122,19 +122,19 @@ describe("config", () => {
     }
   });
 
-  it("addRepoToConfig propagates writeConfig failure", () => {
-    writeConfig(configPath, { name: "myws", repos: [] });
+  it("addRepoToConfig propagates writeConfig failure", async () => {
+    await writeConfig(configPath, { name: "myws", repos: [] });
     // Make the directory read-only so write fails
     chmodSync(wsDir, 0o444);
-    const result = addRepoToConfig(configPath, { name: "r", path: "/p" });
+    const result = await addRepoToConfig(configPath, { name: "r", path: "/p" });
     chmodSync(wsDir, 0o755);
     expect(result.ok).toBe(false);
   });
 
-  it("removeRepoFromConfig propagates writeConfig failure", () => {
-    writeConfig(configPath, { name: "myws", repos: [{ name: "r", path: "/p" }] });
+  it("removeRepoFromConfig propagates writeConfig failure", async () => {
+    await writeConfig(configPath, { name: "myws", repos: [{ name: "r", path: "/p" }] });
     chmodSync(wsDir, 0o444);
-    const result = removeRepoFromConfig(configPath, "r");
+    const result = await removeRepoFromConfig(configPath, "r");
     chmodSync(wsDir, 0o755);
     expect(result.ok).toBe(false);
   });
@@ -153,103 +153,103 @@ describe("pool config", () => {
     cleanup(tempDir);
   });
 
-  it("readPoolConfig returns {} when file doesn't exist", () => {
-    const result = readPoolConfig(poolConfigPath);
+  it("readPoolConfig returns {} when file doesn't exist", async () => {
+    const result = await readPoolConfig(poolConfigPath);
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value).toEqual({});
     }
   });
 
-  it("readPoolConfig returns error on invalid JSON", () => {
+  it("readPoolConfig returns error on invalid JSON", async () => {
     writeFileSync(poolConfigPath, "not json");
-    const result = readPoolConfig(poolConfigPath);
+    const result = await readPoolConfig(poolConfigPath);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.code).toBe("POOL_CONFIG_INVALID");
     }
   });
 
-  it("writePoolConfig then readPoolConfig roundtrip", () => {
+  it("writePoolConfig then readPoolConfig roundtrip", async () => {
     const pool = { myrepo: { "feature-x": ["ws1", "ws2"] } };
-    writePoolConfig(poolConfigPath, pool);
-    const result = readPoolConfig(poolConfigPath);
+    await writePoolConfig(poolConfigPath, pool);
+    const result = await readPoolConfig(poolConfigPath);
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value).toEqual(pool);
     }
   });
 
-  it("addPoolReference creates nested structure", () => {
-    const result = addPoolReference(poolConfigPath, "myrepo", "feature-x", "ws1");
+  it("addPoolReference creates nested structure", async () => {
+    const result = await addPoolReference(poolConfigPath, "myrepo", "feature-x", "ws1");
     expect(result.ok).toBe(true);
-    const pool = readPoolConfig(poolConfigPath);
+    const pool = await readPoolConfig(poolConfigPath);
     expect(pool.ok).toBe(true);
     if (pool.ok) {
       expect(pool.value.myrepo["feature-x"]).toEqual(["ws1"]);
     }
   });
 
-  it("addPoolReference is idempotent (no duplicate ws entries)", () => {
-    addPoolReference(poolConfigPath, "myrepo", "feature-x", "ws1");
-    addPoolReference(poolConfigPath, "myrepo", "feature-x", "ws1");
-    const pool = readPoolConfig(poolConfigPath);
+  it("addPoolReference is idempotent (no duplicate ws entries)", async () => {
+    await addPoolReference(poolConfigPath, "myrepo", "feature-x", "ws1");
+    await addPoolReference(poolConfigPath, "myrepo", "feature-x", "ws1");
+    const pool = await readPoolConfig(poolConfigPath);
     if (pool.ok) {
       expect(pool.value.myrepo["feature-x"]).toEqual(["ws1"]);
     }
   });
 
-  it("addPoolReference adds multiple workspaces", () => {
-    addPoolReference(poolConfigPath, "myrepo", "feature-x", "ws1");
-    addPoolReference(poolConfigPath, "myrepo", "feature-x", "ws2");
-    const pool = readPoolConfig(poolConfigPath);
+  it("addPoolReference adds multiple workspaces", async () => {
+    await addPoolReference(poolConfigPath, "myrepo", "feature-x", "ws1");
+    await addPoolReference(poolConfigPath, "myrepo", "feature-x", "ws2");
+    const pool = await readPoolConfig(poolConfigPath);
     if (pool.ok) {
       expect(pool.value.myrepo["feature-x"]).toContain("ws1");
       expect(pool.value.myrepo["feature-x"]).toContain("ws2");
     }
   });
 
-  it("removePoolReference returns remaining count", () => {
-    addPoolReference(poolConfigPath, "myrepo", "feature-x", "ws1");
-    addPoolReference(poolConfigPath, "myrepo", "feature-x", "ws2");
-    const result = removePoolReference(poolConfigPath, "myrepo", "feature-x", "ws1");
+  it("removePoolReference returns remaining count", async () => {
+    await addPoolReference(poolConfigPath, "myrepo", "feature-x", "ws1");
+    await addPoolReference(poolConfigPath, "myrepo", "feature-x", "ws2");
+    const result = await removePoolReference(poolConfigPath, "myrepo", "feature-x", "ws1");
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.remaining).toBe(1);
     }
   });
 
-  it("removePoolReference cleans up empty entries (slug, then repo key)", () => {
-    addPoolReference(poolConfigPath, "myrepo", "feature-x", "ws1");
-    removePoolReference(poolConfigPath, "myrepo", "feature-x", "ws1");
-    const pool = readPoolConfig(poolConfigPath);
+  it("removePoolReference cleans up empty entries (slug, then repo key)", async () => {
+    await addPoolReference(poolConfigPath, "myrepo", "feature-x", "ws1");
+    await removePoolReference(poolConfigPath, "myrepo", "feature-x", "ws1");
+    const pool = await readPoolConfig(poolConfigPath);
     if (pool.ok) {
       expect(pool.value.myrepo).toBeUndefined();
     }
   });
 
-  it("removePoolReference on non-existent repo/slug returns { remaining: 0 }", () => {
-    const result = removePoolReference(poolConfigPath, "myrepo", "no-slug", "ws1");
+  it("removePoolReference on non-existent repo/slug returns { remaining: 0 }", async () => {
+    const result = await removePoolReference(poolConfigPath, "myrepo", "no-slug", "ws1");
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.remaining).toBe(0);
     }
   });
 
-  it("removePoolReference on non-existent workspace in existing entry returns unchanged count", () => {
-    addPoolReference(poolConfigPath, "myrepo", "feature-x", "ws1");
-    const result = removePoolReference(poolConfigPath, "myrepo", "feature-x", "ws-not-there");
+  it("removePoolReference on non-existent workspace in existing entry returns unchanged count", async () => {
+    await addPoolReference(poolConfigPath, "myrepo", "feature-x", "ws1");
+    const result = await removePoolReference(poolConfigPath, "myrepo", "feature-x", "ws-not-there");
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.remaining).toBe(1);
     }
   });
 
-  it("getPoolSlugsForWorkspace filters by workspace", () => {
-    addPoolReference(poolConfigPath, "myrepo", "feature-a", "ws1");
-    addPoolReference(poolConfigPath, "myrepo", "feature-b", "ws1");
-    addPoolReference(poolConfigPath, "myrepo", "feature-c", "ws2");
-    const result = getPoolSlugsForWorkspace(poolConfigPath, "myrepo", "ws1");
+  it("getPoolSlugsForWorkspace filters by workspace", async () => {
+    await addPoolReference(poolConfigPath, "myrepo", "feature-a", "ws1");
+    await addPoolReference(poolConfigPath, "myrepo", "feature-b", "ws1");
+    await addPoolReference(poolConfigPath, "myrepo", "feature-c", "ws2");
+    const result = await getPoolSlugsForWorkspace(poolConfigPath, "myrepo", "ws1");
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value).toContain("feature-a");
@@ -258,29 +258,29 @@ describe("pool config", () => {
     }
   });
 
-  it("getPoolSlugsForWorkspace returns empty array for unknown repo/workspace", () => {
-    const result = getPoolSlugsForWorkspace(poolConfigPath, "unknown-repo", "ws1");
+  it("getPoolSlugsForWorkspace returns empty array for unknown repo/workspace", async () => {
+    const result = await getPoolSlugsForWorkspace(poolConfigPath, "unknown-repo", "ws1");
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value).toEqual([]);
     }
   });
 
-  it("readPoolConfig with valid JSON but array schema returns error", () => {
+  it("readPoolConfig with valid JSON but array schema returns error", async () => {
     writeFileSync(poolConfigPath, JSON.stringify([1, 2, 3]));
-    const result = readPoolConfig(poolConfigPath);
+    const result = await readPoolConfig(poolConfigPath);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.code).toBe("POOL_CONFIG_INVALID");
     }
   });
 
-  it("writePoolConfig returns error when path is not writable", () => {
+  it("writePoolConfig returns error when path is not writable", async () => {
     const roDir = join(tempDir, "readonly");
     mkdirSync(roDir);
     chmodSync(roDir, 0o444);
     const roPool = join(roDir, "worktrees.json");
-    const result = writePoolConfig(roPool, {});
+    const result = await writePoolConfig(roPool, {});
     chmodSync(roDir, 0o755);
     expect(result.ok).toBe(false);
     if (!result.ok) {

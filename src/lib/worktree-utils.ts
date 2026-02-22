@@ -1,4 +1,4 @@
-import { lstatSync, readdirSync, realpathSync, readlinkSync, rmSync } from "node:fs";
+import { lstat, readdir, realpath, readlink, rm } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { type Paths } from "../constants";
 import { type Result, ok, err } from "../types";
@@ -12,21 +12,21 @@ import { removeWorktree as gitRemoveWorktree, type GitEnv } from "./git";
  * - "legacy" — real directory (old-style git worktree at workspace path)
  * - null     — entry doesn't exist or is not a symlink/directory (caller should skip)
  */
-export function classifyWorktreeEntry(
+export async function classifyWorktreeEntry(
   wtPath: string,
   paths: Paths,
-): "pool" | "linked" | "legacy" | null {
-  let lstat: ReturnType<typeof lstatSync>;
+): Promise<"pool" | "linked" | "legacy" | null> {
+  let lstatResult: Awaited<ReturnType<typeof lstat>>;
   try {
-    lstat = lstatSync(wtPath);
+    lstatResult = await lstat(wtPath);
   } catch {
     return null;
   }
 
-  if (lstat.isSymbolicLink()) {
+  if (lstatResult.isSymbolicLink()) {
     let target: string;
     try {
-      target = readlinkSync(wtPath);
+      target = await readlink(wtPath);
     } catch {
       return "linked"; // unreadable symlink — treat as linked (safe fallback)
     }
@@ -35,7 +35,7 @@ export function classifyWorktreeEntry(
     return relToPool.startsWith("..") ? "linked" : "pool";
   }
 
-  if (lstat.isDirectory()) return "legacy";
+  if (lstatResult.isDirectory()) return "legacy";
 
   return null;
 }
@@ -43,10 +43,10 @@ export function classifyWorktreeEntry(
 /**
  * Resolve the real filesystem path of a repo through the repos/ symlink.
  */
-export function resolveRepoPath(repoName: string, paths: Paths): Result<string> {
+export async function resolveRepoPath(repoName: string, paths: Paths): Promise<Result<string>> {
   const treePath = paths.repoEntry(repoName);
   try {
-    return ok(realpathSync(treePath));
+    return ok(await realpath(treePath));
   } catch {
     return err(`Repo "${repoName}" has a dangling symlink`, "DANGLING_SYMLINK");
   }
@@ -57,18 +57,18 @@ export function resolveRepoPath(repoName: string, paths: Paths): Result<string> 
  * If this is the last reference, also removes the git worktree from the pool.
  * Does NOT remove the workspace symlink — caller handles that.
  */
-export function removePoolWorktreeReference(
+export async function removePoolWorktreeReference(
   workspace: string,
   repo: string,
   slug: string,
   options: { force?: boolean },
   paths: Paths,
   env?: GitEnv,
-): Result<void> {
+): Promise<Result<void>> {
   const poolEntryPath = paths.worktreePoolEntry(repo, slug);
   const poolConfig = paths.worktreePoolConfig;
 
-  const poolResult = readPoolConfig(poolConfig);
+  const poolResult = await readPoolConfig(poolConfig);
   if (!poolResult.ok) return poolResult;
 
   const pool = poolResult.value;
@@ -76,35 +76,40 @@ export function removePoolWorktreeReference(
   const remaining = currentList.filter((ws) => ws !== workspace).length;
 
   if (remaining === 0) {
-    const repoPathResult = resolveRepoPath(repo, paths);
+    const repoPathResult = await resolveRepoPath(repo, paths);
     if (!repoPathResult.ok) {
       // Dangling repo symlink — clean up pool entry directly
       try {
-        rmSync(poolEntryPath, { recursive: true, force: true });
+        await rm(poolEntryPath, { recursive: true, force: true });
       } catch {
         /* best-effort */
       }
-      const danglingRefResult = removePoolReference(poolConfig, repo, slug, workspace);
+      const danglingRefResult = await removePoolReference(poolConfig, repo, slug, workspace);
       if (!danglingRefResult.ok) return danglingRefResult;
       return ok(undefined);
     }
 
-    const gitResult = gitRemoveWorktree(repoPathResult.value, poolEntryPath, options.force, env);
+    const gitResult = await gitRemoveWorktree(
+      repoPathResult.value,
+      poolEntryPath,
+      options.force,
+      env,
+    );
     if (!gitResult.ok) return gitResult;
 
     // Clean up empty worktrees/{repo}/ directory
     const poolRepoDir = paths.worktreePoolRepo(repo);
     try {
-      const entries = readdirSync(poolRepoDir);
+      const entries = await readdir(poolRepoDir);
       if (entries.length === 0) {
-        rmSync(poolRepoDir, { recursive: true, force: true });
+        await rm(poolRepoDir, { recursive: true, force: true });
       }
     } catch {
       /* best-effort */
     }
   }
 
-  const finalRefResult = removePoolReference(poolConfig, repo, slug, workspace);
+  const finalRefResult = await removePoolReference(poolConfig, repo, slug, workspace);
   if (!finalRefResult.ok) return finalRefResult;
   return ok(undefined);
 }

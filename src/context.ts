@@ -1,11 +1,11 @@
-import { existsSync, realpathSync } from "node:fs";
+import { exists, realpath } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
 import { type Context } from "./types";
 import { readConfig } from "./lib/config";
 
-function tryRealpath(p: string): string {
+async function tryRealpath(p: string): Promise<string> {
   try {
-    return realpathSync(p);
+    return await realpath(p);
   } catch {
     return p;
   }
@@ -18,17 +18,17 @@ function tryRealpath(p: string): string {
  * correctly resolved back to their workspace. Falls back to the realpath cwd to
  * handle macOS /tmp → /private/tmp aliasing.
  */
-export function inferContext(cwd: string, workspacesRoot: string): Context {
-  const realRoot = tryRealpath(workspacesRoot);
+export async function inferContext(cwd: string, workspacesRoot: string): Promise<Context> {
+  const realRoot = await tryRealpath(workspacesRoot);
 
-  // Step 1: Walk logical cwd (existsSync follows symlinks, so this works for pool symlinks
+  // Step 1: Walk logical cwd (exists follows symlinks, so this works for pool symlinks
   // as well as macOS /tmp aliases)
   let found: string | undefined;
   let effectiveCwd = cwd;
 
   let dir = cwd;
   while (dir !== dirname(dir)) {
-    if (existsSync(join(dir, "workspace.json"))) {
+    if (await exists(join(dir, "workspace.json"))) {
       found = dir;
       break;
     }
@@ -37,12 +37,12 @@ export function inferContext(cwd: string, workspacesRoot: string): Context {
 
   // Step 2: Fall back to resolved cwd if logical walk failed (edge case: broken path components)
   if (!found) {
-    const resolvedCwd = tryRealpath(cwd);
+    const resolvedCwd = await tryRealpath(cwd);
     if (resolvedCwd !== cwd) {
       effectiveCwd = resolvedCwd;
       let dir2 = resolvedCwd;
       while (dir2 !== dirname(dir2)) {
-        if (existsSync(join(dir2, "workspace.json"))) {
+        if (await exists(join(dir2, "workspace.json"))) {
           found = dir2;
           break;
         }
@@ -57,7 +57,7 @@ export function inferContext(cwd: string, workspacesRoot: string): Context {
   const workspaceName = workspaceDir.split(sep).pop() ?? "";
 
   // Step 3-4: Resolve found dir for root-containment check
-  const realFound = tryRealpath(found);
+  const realFound = await tryRealpath(found);
   const rel = relative(realRoot, realFound);
   if (rel.startsWith("..") || rel === "") {
     return {};
@@ -85,7 +85,7 @@ export function inferContext(cwd: string, workspacesRoot: string): Context {
   if (!repoSegment) return context;
 
   // Validate repo segment against workspace.json
-  const configResult = readConfig(join(workspaceDir, "workspace.json"));
+  const configResult = await readConfig(join(workspaceDir, "workspace.json"));
   if (!configResult.ok) return context;
 
   const repoEntry = configResult.value.repos.find((r) => r.name === repoSegment);
