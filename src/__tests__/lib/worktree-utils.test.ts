@@ -290,6 +290,25 @@ describe("removePoolWorktree", () => {
     expect(result.ok).toBe(true);
     expect(existsSync(poolEntry)).toBe(true);
   });
+
+  it("does not remove pool dir when worktrees.json entry is missing", async () => {
+    // Shared pool worktree owned by otherws; worktrees.json entry is absent for myws.
+    // removePoolWorktree("myws",...) should NOT delete the pool dir — we have no evidence
+    // it is the last reference when the metadata is missing.
+    await addWorkspace("otherws", paths);
+    await addRepo("otherws", repoPath, undefined, paths, GIT_ENV);
+    await addWorktree("otherws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
+
+    const poolEntry = paths.worktreePoolEntry("myrepo", "feature-x");
+
+    // Delete worktrees.json so the entry for otherws is lost
+    rmSync(paths.worktreePoolConfig, { force: true });
+
+    const result = await removePoolWorktree("myws", "myrepo", "feature-x", {}, paths, GIT_ENV);
+    expect(result.ok).toBe(true);
+    // Pool dir must survive — we can't verify no other workspace references it
+    expect(existsSync(poolEntry)).toBe(true);
+  });
 });
 
 describe("removePoolWorktree (dangling repo)", () => {

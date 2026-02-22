@@ -82,27 +82,28 @@ export async function removePoolWorktree(
   if (!poolResult.ok) return poolResult;
 
   const pool = poolResult.value;
-  const currentList = pool[repo]?.[slug] ?? [];
-  const remaining = currentList.filter((ws) => ws !== workspace).length;
+  // wasLastRef is only true when workspace was recorded as the last reference.
+  // When the entry is absent we cannot confirm no other workspace references the pool dir,
+  // so we conservatively skip pool directory removal.
+  let wasLastRef = false;
 
-  if (!pool[repo] || !pool[repo][slug]) {
-    // Nothing to remove from json — already gone
-  } else {
+  if (pool[repo] && pool[repo][slug]) {
     const list = pool[repo][slug];
     const idx = list.indexOf(workspace);
-    if (idx !== -1) list.splice(idx, 1);
-
-    if (remaining === 0) {
-      delete pool[repo][slug];
-      if (Object.keys(pool[repo]).length === 0) delete pool[repo];
+    if (idx !== -1) {
+      list.splice(idx, 1);
+      if (list.length === 0) {
+        wasLastRef = true;
+        delete pool[repo][slug];
+        if (Object.keys(pool[repo]).length === 0) delete pool[repo];
+      }
+      const writeResult = await writePoolConfig(poolConfig, pool);
+      if (!writeResult.ok) return writeResult;
     }
-
-    const writeResult = await writePoolConfig(poolConfig, pool);
-    if (!writeResult.ok) return writeResult;
   }
 
-  // Step 3: if last reference, remove pool directory
-  if (remaining === 0) {
+  // Step 3: if this was the last recorded reference, remove pool directory
+  if (wasLastRef) {
     const poolEntryPath = paths.worktreePoolEntry(repo, slug);
     const poolRepoDir = paths.worktreePoolRepo(repo);
     let gitWarning: string | undefined;

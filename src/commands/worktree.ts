@@ -227,7 +227,7 @@ export async function pruneWorktrees(
         // Pool dir still present means the worktree is live
         if (await exists(poolEntry)) continue;
 
-        await removePoolWorktree(
+        const removeResult = await removePoolWorktree(
           workspace,
           repo.name,
           slug,
@@ -235,7 +235,7 @@ export async function pruneWorktrees(
           paths,
           env,
         );
-        pruned.push({ repo: repo.name, slug });
+        if (removeResult.ok) pruned.push({ repo: repo.name, slug });
       }
     }
   }
