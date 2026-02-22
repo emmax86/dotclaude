@@ -38,36 +38,7 @@ jobs:
           # or https://code.claude.com/docs/en/cli-reference for available options
           claude_args: >-
             --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["pass","fail"]},"summary":{"type":"string"}},"required":["verdict","summary"]}'
-          prompt: |
-            /code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}
-
-            After completing the review, return a JSON object with:
-            - "verdict": "fail" if there are any blocking issues (bugs, security vulnerabilities,
-              critical regressions, breaking API changes, or test failures); "pass" otherwise
-            - "summary": the full review findings to be posted as a PR comment
-
-      - name: Post review comment
-        if: always() && steps.claude-review.outputs.structured_output != ''
-        uses: actions/github-script@v8
-        with:
-          script: |
-            let result;
-            try {
-              result = JSON.parse(process.env.STRUCTURED_OUTPUT);
-            } catch (e) {
-              core.setFailed(`Failed to parse Claude structured output: ${e.message}`);
-              return;
-            }
-            const icon = result.verdict === 'pass' ? '✅' : '❌';
-            await github.rest.pulls.createReview({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
-              body: `${icon} **Claude Code Review**: ${result.verdict.toUpperCase()}\n\n${result.summary}`,
-              event: result.verdict === 'pass' ? 'APPROVE' : 'REQUEST_CHANGES',
-            });
-        env:
-          STRUCTURED_OUTPUT: ${{ steps.claude-review.outputs.structured_output }}
+          prompt: /dotclaude:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}
 
       - name: Gate on missing verdict
         # Fail-closed: if Claude succeeded but emitted no structured output, something went wrong
