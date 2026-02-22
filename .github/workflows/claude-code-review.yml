@@ -18,7 +18,6 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-      issues: read
       id-token: write
 
     steps:
@@ -34,31 +33,39 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: "https://github.com/anthropics/claude-code.git"
           plugins: "code-review@claude-code-plugins"
-          use_sticky_comment: "true"
           show_full_output: "true"
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
+          claude_args: >-
+            --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["pass","fail"]},"summary":{"type":"string"}},"required":["verdict","summary"]}'
           prompt: |
             /code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}
 
-            After completing the review, write a verdict to GitHub Actions output based on the severity of findings:
-            - Treat as **blocking issues** any problems that should prevent merging the PR until fixed. Examples include:
-              - Functional bugs or logic errors
-              - Security vulnerabilities or unsafe patterns
-              - Critical performance regressions (e.g., potential timeouts, OOM risks)
-              - Breaking changes to public APIs or contracts
-              - Changes that cause tests to fail or likely introduce instability
-              If any such blocking issues are present, run: `echo "verdict=fail" >> $GITHUB_OUTPUT`
-            - Treat as **minor suggestions** any findings that are nice-to-have but not merge-blocking. Examples include:
-              - Style or formatting nits
-              - Documentation or comment improvements
-              - Optional refactoring ideas that do not address bugs
-              - Non-critical performance or readability improvements
-              If there are only minor suggestions or no issues, run: `echo "verdict=pass" >> $GITHUB_OUTPUT`
+            After completing the review, return a JSON object with:
+            - "verdict": "fail" if there are any blocking issues (bugs, security vulnerabilities,
+              critical regressions, breaking API changes, or test failures); "pass" otherwise
+            - "summary": the full review findings to be posted as a PR comment
+
+      - name: Post review comment
+        if: always() && steps.claude-review.outputs.structured_output != ''
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const result = JSON.parse(process.env.STRUCTURED_OUTPUT);
+            const icon = result.verdict === 'pass' ? '✅' : '❌';
+            await github.rest.pulls.createReview({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              body: `${icon} **Claude Code Review**: ${result.verdict.toUpperCase()}\n\n${result.summary}`,
+              event: 'COMMENT',
+            });
+        env:
+          STRUCTURED_OUTPUT: ${{ steps.claude-review.outputs.structured_output }}
 
       - name: Gate on review verdict
-        # Fail-closed: fail if Claude ran successfully but did NOT emit verdict=pass
-        if: steps.claude-review.conclusion == 'success' && steps.claude-review.outputs.verdict != 'pass'
+        # Fail-closed: fail if Claude ran successfully but did NOT return verdict=pass
+        if: steps.claude-review.conclusion == 'success' && steps.claude-review.outputs.structured_output != '' && fromJSON(steps.claude-review.outputs.structured_output).verdict != 'pass'
         run: |
           echo "Claude found blocking issues or did not emit a verdict. See PR comment for details."
           exit 1
