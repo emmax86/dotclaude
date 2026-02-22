@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "bun test",
-    "build": "rm -f .bin/dotclaude && bun build --compile src/cli.ts --outfile .bin/dotclaude",
+    "build": "mkdir -p .bin && rm -f .bin/dotclaude && bun build --compile src/cli.ts --outfile .bin/dotclaude",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
