@@ -31,44 +31,25 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           plugin_marketplaces: "https://github.com/anthropics/claude-code.git"
           plugins: "code-review@claude-code-plugins"
           show_full_output: "true"
+          # Allow GitHub MCP tools without interactive approval prompts.
+          # The /code-review:code-review skill is called directly at the top level
+          # (not via a Task sub-agent) because sub-agents do not inherit marketplace plugins.
+          allowed_tools: "mcp__github__*,WebFetch,Read,Glob,Grep,structured_output"
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
           claude_args: >-
             --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["pass","fail"]},"summary":{"type":"string"}},"required":["verdict","summary"]}'
           prompt: |
-            You are a CI gating agent. Follow these steps:
+            Run /code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}.
 
-            1. Run a sub-agent with this exact prompt (do not include the surrounding code block markers in the prompt itself):
-
-               ```
-               Run `/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}`.
-
-               After completing the review and posting your findings to the pull request, output
-               exactly one of the following as the very last line of your response — no other text
-               after it:
-
-               VERDICT:pass
-               VERDICT:fail
-
-               Use `VERDICT:pass` only if you found zero blocking issues. Use `VERDICT:fail` for
-               any blocking issues, or if you were unable to complete the review.
-               ```
-
-            2. Scan the sub-agent's response for lines matching exactly `VERDICT:pass` or
-               `VERDICT:fail`. If multiple such lines are present, use the last one. If no such line
-               is present, treat it as `VERDICT:fail` (fail-closed).
-
-            3. Call the `structured_output` tool with:
-               ```json
-               {
-                 "verdict": "pass",
-                 "summary": "<complete sub-agent response text, excluding the final VERDICT line>"
-               }
-               ```
-               where `verdict` is either `"pass"` or `"fail"` based on step 2.
+            After the review is complete and findings are posted to the PR, output a JSON object
+            with "verdict" set to "pass" if there are zero blocking issues or "fail" for any
+            blocking issues or inability to complete the review, and "summary" containing the
+            complete review summary.
 
       - name: Gate on missing verdict
         # Fail-closed: if Claude succeeded but emitted no structured output, something went wrong
