@@ -122,7 +122,6 @@ export async function addPoolReference(
   return writePoolConfig(path, pool);
 }
 
-
 export async function getPoolSlugsForWorkspace(
   path: string,
   repo: string,
