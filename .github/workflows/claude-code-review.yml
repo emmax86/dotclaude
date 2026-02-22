@@ -35,6 +35,7 @@ jobs:
           plugin_marketplaces: "https://github.com/anthropics/claude-code.git"
           plugins: "code-review@claude-code-plugins"
           show_full_output: "true"
+          track_progress: "true"
           # Pre-approve tools used by the code-review skill so no interactive prompts fire.
           # The mcp__github_inline_comment__ prefix triggers that MCP server installation.
           # The /code-review:code-review skill is called directly at the top level
