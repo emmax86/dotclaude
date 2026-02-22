@@ -71,10 +71,8 @@ export async function removePoolWorktree(
     const wtPath = paths.worktreeDir(workspace, repo, slug);
     try {
       await rm(wtPath);
-    } catch (e: unknown) {
-      if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
-        /* best-effort — swallow errors other than ENOENT */
-      }
+    } catch {
+      /* best-effort */
     }
   }
 

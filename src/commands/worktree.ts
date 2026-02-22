@@ -267,6 +267,9 @@ export async function removeWorktree(
         env,
       );
       if (!removeResult.ok) return removeResult;
+      if (removeResult.value.gitWarning) {
+        return err(removeResult.value.gitWarning, "GIT_WORKTREE_REMOVE_ERROR");
+      }
       return ok(undefined);
     }
     return err(`Worktree "${slug}" not found in repo "${repo}"`, "WORKTREE_NOT_FOUND");
