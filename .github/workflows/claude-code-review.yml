@@ -12,12 +12,8 @@ on:
 
 jobs:
   claude-review:
-    # Optional: Filter by PR author
-    # if: |
-    #   github.event.pull_request.user.login == 'external-contributor' ||
-    #   github.event.pull_request.user.login == 'new-developer' ||
-    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
-
+    # Only run for PRs from trusted contributors (mirrors the filter in claude.yml)
+    if: contains(fromJson('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -38,6 +34,37 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: "https://github.com/anthropics/claude-code.git"
           plugins: "code-review@claude-code-plugins"
-          prompt: "/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}"
+          use_sticky_comment: "true"
+          show_full_output: "true"
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
+          prompt: |
+            /code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}
+
+            After completing the review, write a verdict to GitHub Actions output based on the severity of findings:
+            - Treat as **blocking issues** any problems that should prevent merging the PR until fixed. Examples include:
+              - Functional bugs or logic errors
+              - Security vulnerabilities or unsafe patterns
+              - Critical performance regressions (e.g., potential timeouts, OOM risks)
+              - Breaking changes to public APIs or contracts
+              - Changes that cause tests to fail or likely introduce instability
+              If any such blocking issues are present, run: `echo "verdict=fail" >> $GITHUB_OUTPUT`
+            - Treat as **minor suggestions** any findings that are nice-to-have but not merge-blocking. Examples include:
+              - Style or formatting nits
+              - Documentation or comment improvements
+              - Optional refactoring ideas that do not address bugs
+              - Non-critical performance or readability improvements
+              If there are only minor suggestions or no issues, run: `echo "verdict=pass" >> $GITHUB_OUTPUT`
+
+      - name: Gate on review verdict
+        # Fail-closed: fail if Claude ran successfully but did NOT emit verdict=pass
+        if: steps.claude-review.conclusion == 'success' && steps.claude-review.outputs.verdict != 'pass'
+        run: |
+          echo "Claude found blocking issues or did not emit a verdict. See PR comment for details."
+          exit 1
+
+      - name: Check review completed
+        if: failure() && steps.claude-review.conclusion == 'failure'
+        run: |
+          echo "Claude Code Review action failed to complete. Check logs for details."
+          exit 1
