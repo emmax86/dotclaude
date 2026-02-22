@@ -51,27 +51,40 @@ jobs:
         uses: actions/github-script@v8
         with:
           script: |
-            const result = JSON.parse(process.env.STRUCTURED_OUTPUT);
+            let result;
+            try {
+              result = JSON.parse(process.env.STRUCTURED_OUTPUT);
+            } catch (e) {
+              core.setFailed(`Failed to parse Claude structured output: ${e.message}`);
+              return;
+            }
             const icon = result.verdict === 'pass' ? '✅' : '❌';
             await github.rest.pulls.createReview({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: context.issue.number,
               body: `${icon} **Claude Code Review**: ${result.verdict.toUpperCase()}\n\n${result.summary}`,
-              event: 'COMMENT',
+              event: result.verdict === 'pass' ? 'APPROVE' : 'REQUEST_CHANGES',
             });
         env:
           STRUCTURED_OUTPUT: ${{ steps.claude-review.outputs.structured_output }}
 
-      - name: Gate on review verdict
-        # Fail-closed: fail if Claude ran successfully but did NOT return verdict=pass
-        if: steps.claude-review.conclusion == 'success' && steps.claude-review.outputs.structured_output != '' && fromJSON(steps.claude-review.outputs.structured_output).verdict != 'pass'
+      - name: Gate on missing verdict
+        # Fail-closed: if Claude succeeded but emitted no structured output, something went wrong
+        if: steps.claude-review.outcome == 'success' && steps.claude-review.outputs.structured_output == ''
         run: |
-          echo "Claude found blocking issues or did not emit a verdict. See PR comment for details."
+          echo "Claude succeeded but emitted no structured verdict. Failing closed."
+          exit 1
+
+      - name: Gate on review verdict
+        # Fail-closed: fail if Claude ran successfully and returned verdict != pass
+        if: steps.claude-review.outcome == 'success' && steps.claude-review.outputs.structured_output != '' && fromJSON(steps.claude-review.outputs.structured_output).verdict != 'pass'
+        run: |
+          echo "Claude found blocking issues. See PR review for details."
           exit 1
 
       - name: Check review completed
-        if: failure() && steps.claude-review.conclusion == 'failure'
+        if: failure() && steps.claude-review.outcome == 'failure'
         run: |
           echo "Claude Code Review action failed to complete. Check logs for details."
           exit 1
