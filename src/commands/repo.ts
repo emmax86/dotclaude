@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, realpathSync, rmSync, symlinkSync } from "node:fs";
+import { exists, mkdir, readdir, realpath, rm, symlink } from "node:fs/promises";
 import { basename, dirname, relative, resolve } from "node:path";
 import { type Paths } from "../constants";
 import { type Result, ok, err, type RepoEntry } from "../types";
@@ -17,16 +17,16 @@ export interface RepoInfo extends RepoEntry {
   status: "ok" | "dangling";
 }
 
-export function addRepo(
+export async function addRepo(
   workspace: string,
   repoPath: string,
   nameOverride: string | undefined,
   paths: Paths,
   env?: GitEnv,
-): Result<RepoInfo> {
+): Promise<Result<RepoInfo>> {
   const absPath = resolve(repoPath);
 
-  if (!isGitRepo(absPath)) {
+  if (!(await isGitRepo(absPath))) {
     return err(`"${absPath}" is not a git repository`, "NOT_A_GIT_REPO");
   }
 
@@ -41,21 +41,20 @@ export function addRepo(
 
   // Check if repos/{name} exists pointing to a different path
   const treePath = paths.repoEntry(name);
-  if (existsSync(treePath)) {
+  if (await exists(treePath)) {
     let existingTarget: string;
     try {
-      existingTarget = realpathSync(treePath);
+      existingTarget = await realpath(treePath);
     } catch {
       // dangling symlink — treat as pointing to different path
       existingTarget = "";
     }
-    const realAbsPath = (() => {
-      try {
-        return realpathSync(absPath);
-      } catch {
-        return absPath;
-      }
-    })();
+    let realAbsPath: string;
+    try {
+      realAbsPath = await realpath(absPath);
+    } catch {
+      realAbsPath = absPath;
+    }
     if (existingTarget !== realAbsPath) {
       return err(
         `repos/${name} already points to a different path. Use --name to pick a different name.`,
@@ -65,63 +64,63 @@ export function addRepo(
     // Same path — reuse existing tree symlink
   } else {
     // Create repos/ lazily
-    mkdirSync(paths.repos, { recursive: true });
-    symlinkSync(absPath, treePath);
+    await mkdir(paths.repos, { recursive: true });
+    await symlink(absPath, treePath);
   }
 
   // Create {workspace}/trees/{repo-name}/ directory
   const repoDirPath = paths.repoDir(workspace, name);
   let repoDirCreated = false;
 
-  function cleanup() {
-    if (repoDirCreated && existsSync(repoDirPath)) {
-      rmSync(repoDirPath, { recursive: true, force: true });
+  async function cleanup() {
+    if (repoDirCreated && (await exists(repoDirPath))) {
+      await rm(repoDirPath, { recursive: true, force: true });
     }
   }
 
-  if (!existsSync(repoDirPath)) {
-    mkdirSync(repoDirPath, { recursive: true });
+  if (!(await exists(repoDirPath))) {
+    await mkdir(repoDirPath, { recursive: true });
     repoDirCreated = true;
   }
 
   // Detect default branch and create symlink
-  const branchResult = getDefaultBranch(absPath, env);
+  const branchResult = await getDefaultBranch(absPath, env);
   if (!branchResult.ok) {
-    cleanup();
+    await cleanup();
     return branchResult; // preserves GIT_DEFAULT_BRANCH_ERROR
   }
 
   const slug = toSlug(branchResult.value);
   const defaultBranchSlugPath = paths.worktreeDir(workspace, name, slug);
-  if (!existsSync(defaultBranchSlugPath)) {
+  if (!(await exists(defaultBranchSlugPath))) {
     // Symlink: {workspace}/trees/{repo}/{slug} -> repos/{repo}
-    symlinkSync(
+    await symlink(
       relative(dirname(defaultBranchSlugPath), paths.repoEntry(name)),
       defaultBranchSlugPath,
     );
   }
 
   // Add to workspace.json
-  const configResult = addRepoToConfig(paths.workspaceConfig(workspace), {
+  const configResult = await addRepoToConfig(paths.workspaceConfig(workspace), {
     name,
     path: absPath,
   });
   if (!configResult.ok) {
-    cleanup();
+    await cleanup();
     return configResult; // preserves CONFIG_NOT_FOUND etc.
   }
 
-  const vscodeResult = generateVSCodeWorkspace(workspace, paths);
+  const vscodeResult = await generateVSCodeWorkspace(workspace, paths);
   if (!vscodeResult.ok) return vscodeResult;
 
-  const claudeResult = generateClaudeFiles(workspace, paths, env);
+  const claudeResult = await generateClaudeFiles(workspace, paths, env);
   if (!claudeResult.ok) return claudeResult;
 
   return ok({ name, path: absPath, status: "ok" });
 }
 
-export function listRepos(workspace: string, paths: Paths): Result<RepoInfo[]> {
-  const configResult = readConfig(paths.workspaceConfig(workspace));
+export async function listRepos(workspace: string, paths: Paths): Promise<Result<RepoInfo[]>> {
+  const configResult = await readConfig(paths.workspaceConfig(workspace));
   if (!configResult.ok) {
     if (configResult.code === "CONFIG_NOT_FOUND") {
       return err(`Workspace "${workspace}" not found`, "WORKSPACE_NOT_FOUND");
@@ -129,40 +128,40 @@ export function listRepos(workspace: string, paths: Paths): Result<RepoInfo[]> {
     return configResult;
   }
 
-  return ok(
-    configResult.value.repos.map((repo) => {
-      const treePath = paths.repoEntry(repo.name);
-      let status: RepoInfo["status"] = "ok";
-      try {
-        realpathSync(treePath);
-      } catch {
-        status = "dangling";
-      }
-      return { ...repo, status };
-    }),
-  );
+  const results: RepoInfo[] = [];
+  for (const repo of configResult.value.repos) {
+    const treePath = paths.repoEntry(repo.name);
+    let status: RepoInfo["status"] = "ok";
+    try {
+      await realpath(treePath);
+    } catch {
+      status = "dangling";
+    }
+    results.push({ ...repo, status });
+  }
+  return ok(results);
 }
 
-export function removeRepo(
+export async function removeRepo(
   workspace: string,
   name: string,
   options: { force?: boolean },
   paths: Paths,
   env?: GitEnv,
-): Result<void> {
+): Promise<Result<void>> {
   const repoDir = paths.repoDir(workspace, name);
-  if (existsSync(repoDir)) {
+  if (await exists(repoDir)) {
     // Three-way classification of entries:
-    // 1. Default-branch symlink (../trees/) — skip, cleaned by rmSync(repoDir)
+    // 1. Default-branch symlink (../trees/) — skip, cleaned by rm(repoDir)
     // 2. Pool symlink (../../worktrees/) — count as worktree
     // 3. Legacy real directory — count as worktree
-    const entries = readdirSync(repoDir);
+    const entries = await readdir(repoDir);
     const poolSlugs: string[] = [];
     const legacySlugs: string[] = [];
 
     for (const slug of entries) {
       const wtPath = paths.worktreeDir(workspace, name, slug);
-      const kind = classifyWorktreeEntry(wtPath, paths);
+      const kind = await classifyWorktreeEntry(wtPath, paths);
       if (kind === "pool") {
         poolSlugs.push(slug);
       } else if (kind === "legacy") {
@@ -181,11 +180,11 @@ export function removeRepo(
     }
 
     if (options.force && totalWorktrees > 0) {
-      const repoPathResult = resolveRepoPath(name, paths);
+      const repoPathResult = await resolveRepoPath(name, paths);
       const realRepoPath = repoPathResult.ok ? repoPathResult.value : "";
 
       for (const slug of poolSlugs) {
-        const removeResult = removePoolWorktreeReference(
+        const removeResult = await removePoolWorktreeReference(
           workspace,
           name,
           slug,
@@ -204,7 +203,7 @@ export function removeRepo(
       for (const slug of legacySlugs) {
         const wtPath = paths.worktreeDir(workspace, name, slug);
         if (realRepoPath) {
-          const removeResult = removeWorktree(realRepoPath, wtPath, true, env);
+          const removeResult = await removeWorktree(realRepoPath, wtPath, true, env);
           if (!removeResult.ok) {
             return err(
               `Failed to remove worktree ${slug}: ${removeResult.error}`,
@@ -215,17 +214,17 @@ export function removeRepo(
       }
     }
 
-    rmSync(repoDir, { recursive: true, force: true });
+    await rm(repoDir, { recursive: true, force: true });
   }
 
   // Remove from workspace.json (global repo entry stays)
-  const removeResult = removeRepoFromConfig(paths.workspaceConfig(workspace), name);
+  const removeResult = await removeRepoFromConfig(paths.workspaceConfig(workspace), name);
   if (!removeResult.ok) return removeResult;
 
-  const vscodeResult = generateVSCodeWorkspace(workspace, paths);
+  const vscodeResult = await generateVSCodeWorkspace(workspace, paths);
   if (!vscodeResult.ok) return vscodeResult;
 
-  const claudeResult = generateClaudeFiles(workspace, paths, env);
+  const claudeResult = await generateClaudeFiles(workspace, paths, env);
   if (!claudeResult.ok) return claudeResult;
 
   return ok(undefined);

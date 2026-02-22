@@ -14,9 +14,9 @@ export interface WorkspaceStatus {
   repos: RepoStatus[];
 }
 
-export function getStatus(workspace: string, paths: Paths): Result<WorkspaceStatus> {
+export async function getStatus(workspace: string, paths: Paths): Promise<Result<WorkspaceStatus>> {
   const wsPath = paths.workspace(workspace);
-  const configResult = readConfig(paths.workspaceConfig(workspace));
+  const configResult = await readConfig(paths.workspaceConfig(workspace));
   if (!configResult.ok) {
     if (configResult.code === "CONFIG_NOT_FOUND") {
       return err(`Workspace "${workspace}" not found`, "WORKSPACE_NOT_FOUND");
@@ -24,13 +24,13 @@ export function getStatus(workspace: string, paths: Paths): Result<WorkspaceStat
     return configResult;
   }
 
-  const reposResult = listRepos(workspace, paths);
+  const reposResult = await listRepos(workspace, paths);
   if (!reposResult.ok) return reposResult;
 
   const repoStatuses: RepoStatus[] = [];
 
   for (const repo of reposResult.value) {
-    const wtResult = listWorktrees(workspace, repo.name, paths);
+    const wtResult = await listWorktrees(workspace, repo.name, paths);
     const worktrees = wtResult.ok ? wtResult.value : [];
     repoStatuses.push({ ...repo, worktrees });
   }

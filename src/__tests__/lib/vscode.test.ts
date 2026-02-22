@@ -19,14 +19,14 @@ describe("generateVSCodeWorkspace", () => {
     cleanup(tempDir);
   });
 
-  function setupWorkspace(ws: string, repos: { name: string; path: string }[] = []) {
+  async function setupWorkspace(ws: string, repos: { name: string; path: string }[] = []) {
     mkdirSync(paths.workspace(ws), { recursive: true });
-    writeConfig(paths.workspaceConfig(ws), { name: ws, repos });
+    await writeConfig(paths.workspaceConfig(ws), { name: ws, repos });
   }
 
-  it("generates .code-workspace with root folder only for empty workspace", () => {
-    setupWorkspace("alpha");
-    const result = generateVSCodeWorkspace("alpha", paths);
+  it("generates .code-workspace with root folder only for empty workspace", async () => {
+    await setupWorkspace("alpha");
+    const result = await generateVSCodeWorkspace("alpha", paths);
     expect(result.ok).toBe(true);
 
     const filePath = paths.vscodeWorkspace("alpha");
@@ -37,9 +37,9 @@ describe("generateVSCodeWorkspace", () => {
     expect(content.settings["files.exclude"].trees).toBe(true);
   });
 
-  it("generates .code-workspace with repo folder entry", () => {
-    setupWorkspace("alpha", [{ name: "myapp", path: "/some/path" }]);
-    const result = generateVSCodeWorkspace("alpha", paths);
+  it("generates .code-workspace with repo folder entry", async () => {
+    await setupWorkspace("alpha", [{ name: "myapp", path: "/some/path" }]);
+    const result = await generateVSCodeWorkspace("alpha", paths);
     expect(result.ok).toBe(true);
 
     const content = JSON.parse(readFileSync(paths.vscodeWorkspace("alpha"), "utf-8"));
@@ -48,13 +48,13 @@ describe("generateVSCodeWorkspace", () => {
     expect(content.folders[1]).toEqual({ path: "trees/myapp", name: "myapp" });
   });
 
-  it("sorts repo folders alphabetically", () => {
-    setupWorkspace("alpha", [
+  it("sorts repo folders alphabetically", async () => {
+    await setupWorkspace("alpha", [
       { name: "zebra", path: "/p" },
       { name: "apple", path: "/p" },
       { name: "mango", path: "/p" },
     ]);
-    const result = generateVSCodeWorkspace("alpha", paths);
+    const result = await generateVSCodeWorkspace("alpha", paths);
     expect(result.ok).toBe(true);
 
     const content = JSON.parse(readFileSync(paths.vscodeWorkspace("alpha"), "utf-8"));
@@ -64,15 +64,15 @@ describe("generateVSCodeWorkspace", () => {
     expect(content.folders[3].name).toBe("zebra");
   });
 
-  it("overwrites existing .code-workspace on regeneration", () => {
-    setupWorkspace("alpha");
+  it("overwrites existing .code-workspace on regeneration", async () => {
+    await setupWorkspace("alpha");
     // Write a file with extra keys
     writeFileSync(
       paths.vscodeWorkspace("alpha"),
       JSON.stringify({ folders: [], settings: {}, extraKey: "should-be-gone" }, null, 2) + "\n",
     );
 
-    const result = generateVSCodeWorkspace("alpha", paths);
+    const result = await generateVSCodeWorkspace("alpha", paths);
     expect(result.ok).toBe(true);
 
     const content = JSON.parse(readFileSync(paths.vscodeWorkspace("alpha"), "utf-8"));
@@ -80,8 +80,8 @@ describe("generateVSCodeWorkspace", () => {
     expect(content.folders).toHaveLength(1);
   });
 
-  it("returns error for non-existent workspace", () => {
-    const result = generateVSCodeWorkspace("ghost", paths);
+  it("returns error for non-existent workspace", async () => {
+    const result = await generateVSCodeWorkspace("ghost", paths);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.code).toBe("WORKSPACE_NOT_FOUND");

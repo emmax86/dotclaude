@@ -1,10 +1,13 @@
-import { writeFileSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
 import { type Paths } from "../constants";
 import { type Result, ok, err } from "../types";
 import { readConfig } from "./config";
 
-export function generateVSCodeWorkspace(workspace: string, paths: Paths): Result<void> {
-  const configResult = readConfig(paths.workspaceConfig(workspace));
+export async function generateVSCodeWorkspace(
+  workspace: string,
+  paths: Paths,
+): Promise<Result<void>> {
+  const configResult = await readConfig(paths.workspaceConfig(workspace));
   if (!configResult.ok) {
     if (configResult.code === "CONFIG_NOT_FOUND") {
       return err(`Workspace "${workspace}" not found`, "WORKSPACE_NOT_FOUND");
@@ -30,7 +33,7 @@ export function generateVSCodeWorkspace(workspace: string, paths: Paths): Result
   };
 
   try {
-    writeFileSync(paths.vscodeWorkspace(workspace), JSON.stringify(obj, null, 2) + "\n");
+    await writeFile(paths.vscodeWorkspace(workspace), JSON.stringify(obj, null, 2) + "\n");
   } catch (e) {
     return err(String(e), "VSCODE_WORKSPACE_WRITE_FAILED");
   }

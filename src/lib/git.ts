@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { exists } from "node:fs/promises";
 import { join } from "node:path";
 import { type Result, ok, err } from "../types";
 
@@ -29,13 +29,13 @@ function spawnGit(
   };
 }
 
-export function isGitRepo(path: string): boolean {
-  if (!existsSync(path)) return false;
+export async function isGitRepo(path: string): Promise<boolean> {
+  if (!(await exists(path))) return false;
   const result = spawnGit(["rev-parse", "--git-dir"], path);
   return result.success;
 }
 
-export function getDefaultBranch(repoPath: string, env?: GitEnv): Result<string> {
+export async function getDefaultBranch(repoPath: string, env?: GitEnv): Promise<Result<string>> {
   const result = spawnGit(["symbolic-ref", "--short", "HEAD"], repoPath, env);
   if (!result.success || !result.stdout) {
     return err("Could not determine default branch", "GIT_DEFAULT_BRANCH_ERROR");
@@ -48,13 +48,13 @@ export interface AddWorktreeOptions {
   from?: string;
 }
 
-export function addWorktree(
+export async function addWorktree(
   repoPath: string,
   worktreePath: string,
   branch: string,
   options: AddWorktreeOptions = {},
   env?: GitEnv,
-): Result<void> {
+): Promise<Result<void>> {
   let args: string[];
 
   if (options.newBranch) {
@@ -73,12 +73,12 @@ export function addWorktree(
   return ok(undefined);
 }
 
-export function removeWorktree(
+export async function removeWorktree(
   repoPath: string,
   worktreePath: string,
   force = false,
   env?: GitEnv,
-): Result<void> {
+): Promise<Result<void>> {
   const args = ["worktree", "remove"];
   if (force) args.push("--force");
   args.push(worktreePath);
@@ -103,7 +103,10 @@ export interface WorktreeInfo {
   isDetached: boolean;
 }
 
-export function listWorktrees(repoPath: string, env?: GitEnv): Result<WorktreeInfo[]> {
+export async function listWorktrees(
+  repoPath: string,
+  env?: GitEnv,
+): Promise<Result<WorktreeInfo[]>> {
   const result = spawnGit(["worktree", "list", "--porcelain"], repoPath, env);
   if (!result.success) {
     return err(result.stderr || "git worktree list failed", "GIT_WORKTREE_LIST_ERROR");
@@ -130,8 +133,11 @@ export function listWorktrees(repoPath: string, env?: GitEnv): Result<WorktreeIn
   return ok(worktrees);
 }
 
-export function findMainWorktreePath(repoPath: string, env?: GitEnv): Result<string> {
-  const result = listWorktrees(repoPath, env);
+export async function findMainWorktreePath(
+  repoPath: string,
+  env?: GitEnv,
+): Promise<Result<string>> {
+  const result = await listWorktrees(repoPath, env);
   if (!result.ok) return result;
   // The first worktree in the list is always the main one
   if (result.value.length === 0) {

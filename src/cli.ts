@@ -87,7 +87,7 @@ function flagValue(parsed: ParsedArgs, name: string): string | undefined {
 
 // ---- Main ----
 
-function main() {
+async function main() {
   const argv = process.argv.slice(2);
   if (argv.length === 0) {
     console.error("Usage: dotclaude <ws|workspaces> <subcommand> [args...]");
@@ -96,7 +96,7 @@ function main() {
 
   const root = process.env.DOTCLAUDE_ROOT ?? DEFAULT_WORKSPACES_ROOT;
   const paths = createPaths(root);
-  const ctx = inferContext(process.env.PWD ?? process.cwd(), root);
+  const ctx = await inferContext(process.env.PWD ?? process.cwd(), root);
 
   // argv[0] = cmd (ws/workspaces), argv[1] = subcommand
   const cmd = argv[0];
@@ -122,12 +122,12 @@ function main() {
         console.error("Usage: dotclaude ws add <name>");
         process.exit(1);
       }
-      output(addWorkspace(name, paths), porcelain);
+      output(await addWorkspace(name, paths), porcelain);
       break;
     }
 
     case "list": {
-      output(listWorkspaces(paths), porcelain, formatWorkspaceList);
+      output(await listWorkspaces(paths), porcelain, formatWorkspaceList);
       break;
     }
 
@@ -137,7 +137,7 @@ function main() {
         console.error("Usage: dotclaude ws remove <name>");
         process.exit(1);
       }
-      output(removeWorkspace(name, { force: flag(parsed, "force") }, paths), porcelain);
+      output(await removeWorkspace(name, { force: flag(parsed, "force") }, paths), porcelain);
       break;
     }
 
@@ -161,7 +161,7 @@ function main() {
             console.error("Usage: dotclaude ws repo add [workspace] <path> [--name override]");
             process.exit(1);
           }
-          output(addRepo(workspace, repoPath, flagValue(parsed, "name"), paths), porcelain);
+          output(await addRepo(workspace, repoPath, flagValue(parsed, "name"), paths), porcelain);
           break;
         }
 
@@ -171,7 +171,7 @@ function main() {
             console.error("Usage: dotclaude ws repo list [workspace]");
             process.exit(1);
           }
-          output(listRepos(workspace, paths), porcelain, formatRepoList);
+          output(await listRepos(workspace, paths), porcelain, formatRepoList);
           break;
         }
 
@@ -190,7 +190,7 @@ function main() {
             process.exit(1);
           }
           output(
-            removeRepo(workspace, repoName, { force: flag(parsed, "force") }, paths),
+            await removeRepo(workspace, repoName, { force: flag(parsed, "force") }, paths),
             porcelain,
           );
           break;
@@ -225,7 +225,7 @@ function main() {
             process.exit(1);
           }
           output(
-            addWorktree(
+            await addWorktree(
               workspace,
               repo,
               branch,
@@ -247,7 +247,7 @@ function main() {
             console.error("Usage: dotclaude ws worktree list [repo]");
             process.exit(1);
           }
-          output(listWorktrees(workspace, repo, paths), porcelain, formatWorktreeList);
+          output(await listWorktrees(workspace, repo, paths), porcelain, formatWorktreeList);
           break;
         }
 
@@ -267,7 +267,7 @@ function main() {
             process.exit(1);
           }
           output(
-            removeWorktree(workspace, repo, slug, { force: flag(parsed, "force") }, paths),
+            await removeWorktree(workspace, repo, slug, { force: flag(parsed, "force") }, paths),
             porcelain,
           );
           break;
@@ -279,7 +279,7 @@ function main() {
             console.error("Usage: dotclaude ws worktree prune");
             process.exit(1);
           }
-          output(pruneWorktrees(workspace, paths), porcelain);
+          output(await pruneWorktrees(workspace, paths), porcelain);
           break;
         }
 
@@ -296,7 +296,7 @@ function main() {
         console.error("Usage: dotclaude ws status [workspace]");
         process.exit(1);
       }
-      output(getStatus(workspace, paths), porcelain);
+      output(await getStatus(workspace, paths), porcelain);
       break;
     }
 
@@ -306,7 +306,7 @@ function main() {
         console.error("Usage: dotclaude ws sync [workspace]");
         process.exit(1);
       }
-      output(syncWorkspace(workspace, paths), porcelain);
+      output(await syncWorkspace(workspace, paths), porcelain);
       break;
     }
 
@@ -329,4 +329,7 @@ function main() {
   }
 }
 
-main();
+await main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
