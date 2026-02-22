@@ -22,6 +22,11 @@
       "name": "repo",
       "description": "Manage repos registered in a workspace",
       "file": "commands/repo.md"
+    },
+    {
+      "name": "code-review",
+      "description": "Run code review via the upstream skill and return a structured verdict for CI gating",
+      "file": "commands/code-review.md"
     }
   ]
 }
