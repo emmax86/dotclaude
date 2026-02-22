@@ -122,40 +122,6 @@ export async function addPoolReference(
   return writePoolConfig(path, pool);
 }
 
-export async function removePoolReference(
-  path: string,
-  repo: string,
-  slug: string,
-  workspace: string,
-): Promise<Result<{ remaining: number }>> {
-  const result = await readPoolConfig(path);
-  if (!result.ok) return result;
-
-  const pool = result.value;
-  if (!pool[repo] || !pool[repo][slug]) {
-    return ok({ remaining: 0 });
-  }
-
-  const list = pool[repo][slug];
-  const idx = list.indexOf(workspace);
-  if (idx === -1) {
-    return ok({ remaining: list.length });
-  }
-
-  list.splice(idx, 1);
-  const remaining = list.length;
-
-  if (remaining === 0) {
-    delete pool[repo][slug];
-    if (Object.keys(pool[repo]).length === 0) {
-      delete pool[repo];
-    }
-  }
-
-  const writeResult = await writePoolConfig(path, pool);
-  if (!writeResult.ok) return writeResult;
-  return ok({ remaining });
-}
 
 export async function getPoolSlugsForWorkspace(
   path: string,
