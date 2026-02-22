@@ -85,6 +85,4 @@ jobs:
 
       - name: Check review completed
         if: failure() && steps.claude-review.outcome == 'failure'
-        run: |
-          echo "Claude Code Review action failed to complete. Check logs for details."
-          exit 1
+        run: echo "Claude Code Review action failed to complete. Check logs for details."
