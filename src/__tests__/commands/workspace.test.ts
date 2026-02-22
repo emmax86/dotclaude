@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import {
   existsSync,
   lstatSync,
@@ -223,6 +223,23 @@ describe("workspace commands", () => {
     // worktrees.json should be cleaned
     const after = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
     expect(after.myrepo).toBeUndefined();
+  });
+
+  it("does remove workspace directory when gitWarning occurs during removeWorkspace --force", async () => {
+    const repoPath = await createTestGitRepo(tempDir, "myrepo");
+    await addWorkspace("myws", paths);
+    await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    await addWorktree("myws", "myrepo", "feature/pool", { newBranch: true }, paths, GIT_ENV);
+
+    // Lock the worktree — git worktree remove --force on a locked worktree fails (requires -f -f).
+    // This reliably produces a gitWarning even when force: true is used.
+    const poolEntry = paths.worktreePoolEntry("myrepo", "feature-pool");
+    Bun.spawnSync(["git", "-C", repoPath, "worktree", "lock", poolEntry], { env: GIT_ENV });
+
+    // removeWorkspace --force: even if git reports a warning, workspace directory must be removed
+    await removeWorkspace("myws", { force: true }, paths, GIT_ENV);
+
+    expect(existsSync(paths.workspace("myws"))).toBe(false);
   });
 
   it("add creates workspace.json, .code-workspace, and trees.md", async () => {

@@ -147,6 +147,8 @@ export async function removeRepo(
   env?: GitEnv,
 ): Promise<Result<void>> {
   const repoDir = paths.repoDir(workspace, name);
+  const forceErrors: string[] = [];
+
   if (await exists(repoDir)) {
     // Three-way classification of entries:
     // 1. Default-branch symlink (../trees/) — skip, cleaned by rm(repoDir)
@@ -204,16 +206,9 @@ export async function removeRepo(
           env,
         );
         if (!removeResult.ok) {
-          return err(
-            `Failed to remove pool worktree ${slug}: ${removeResult.error}`,
-            "WORKTREE_REMOVE_FAILED",
-          );
-        }
-        if (removeResult.ok && removeResult.value.gitWarning) {
-          return err(
-            `Failed to remove pool worktree ${slug}: ${removeResult.value.gitWarning}`,
-            "WORKTREE_REMOVE_FAILED",
-          );
+          forceErrors.push(`${slug}: ${removeResult.error}`);
+        } else if (removeResult.value.gitWarning) {
+          forceErrors.push(`${slug}: ${removeResult.value.gitWarning}`);
         }
       }
 
@@ -222,15 +217,14 @@ export async function removeRepo(
         if (realRepoPath) {
           const removeResult = await removeWorktree(realRepoPath, wtPath, true, env);
           if (!removeResult.ok) {
-            return err(
-              `Failed to remove worktree ${slug}: ${removeResult.error}`,
-              "WORKTREE_REMOVE_FAILED",
-            );
+            forceErrors.push(`${slug}: ${removeResult.error}`);
           }
         }
       }
     }
 
+    // Always run even when forceErrors occurred — rm(repoDir) cleans workspace symlinks
+    // that were left in place by skipSymlink: true above.
     await rm(repoDir, { recursive: true, force: true });
   }
 
@@ -243,6 +237,13 @@ export async function removeRepo(
 
   const claudeResult = await generateClaudeFiles(workspace, paths, env);
   if (!claudeResult.ok) return claudeResult;
+
+  if (forceErrors.length > 0) {
+    return err(
+      `Failed to remove some worktrees:\n${forceErrors.join("\n")}`,
+      "WORKTREE_REMOVE_FAILED",
+    );
+  }
 
   return ok(undefined);
 }

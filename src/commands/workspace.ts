@@ -117,9 +117,9 @@ export async function removeWorkspace(
     );
   }
 
-  if (options.force && config.repos.length > 0) {
-    const errors: string[] = [];
+  const errors: string[] = [];
 
+  if (options.force && config.repos.length > 0) {
     for (const repo of config.repos) {
       const repoDir = paths.repoDir(name, repo.name);
       if (!(await exists(repoDir))) continue;
@@ -178,16 +178,15 @@ export async function removeWorkspace(
         // null or linked: skip
       }
     }
-
-    if (errors.length > 0) {
-      return err(
-        `Failed to remove some worktrees:\n${errors.join("\n")}`,
-        "WORKTREE_REMOVE_FAILED",
-      );
-    }
   }
 
+  // Always run rm(wsPath) — it cleans workspace symlinks left in place by skipSymlink: true.
   await rm(wsPath, { recursive: true, force: true });
+
+  if (errors.length > 0) {
+    return err(`Failed to remove some worktrees:\n${errors.join("\n")}`, "WORKTREE_REMOVE_FAILED");
+  }
+
   return ok(undefined);
 }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import {
   chmodSync,
   existsSync,
@@ -8,6 +8,7 @@ import {
   readFileSync,
   readlinkSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "../helpers";
@@ -389,5 +390,28 @@ describe("repo commands", () => {
     const after = readFileSync(paths.claudeTreesMd("myws"), "utf-8");
     expect(after).not.toContain("myrepo");
     expect(after).toContain("other");
+  });
+
+  it("does remove repoDir and deregister repo when gitWarning occurs during removeRepo --force", async () => {
+    await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+    await addWorktree("myws", "myrepo", "feature/pool", { newBranch: true }, paths, GIT_ENV);
+
+    // Lock the worktree — git worktree remove --force on a locked worktree fails (requires -f -f).
+    // This reliably produces a gitWarning even when force: true is used.
+    const poolEntry = paths.worktreePoolEntry("myrepo", "feature-pool");
+    Bun.spawnSync(["git", "-C", repoPath, "worktree", "lock", poolEntry], { env: GIT_ENV });
+
+    // removeRepo --force: git warns but repoDir and workspace.json must still be cleaned
+    const result = await removeRepo("myws", "myrepo", { force: true }, paths, GIT_ENV);
+
+    // Function may return ok or WORKTREE_REMOVE_FAILED, but repoDir must be gone
+    expect(existsSync(paths.repoDir("myws", "myrepo"))).toBe(false);
+    // Repo must be deregistered from workspace.json
+    const config = JSON.parse(readFileSync(paths.workspaceConfig("myws"), "utf-8"));
+    expect(config.repos.find((r: { name: string }) => r.name === "myrepo")).toBeUndefined();
+    // Result may be ok or error — but if error it must be WORKTREE_REMOVE_FAILED
+    if (!result.ok) {
+      expect(result.code).toBe("WORKTREE_REMOVE_FAILED");
+    }
   });
 });
