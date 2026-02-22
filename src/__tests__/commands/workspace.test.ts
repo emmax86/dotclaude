@@ -216,6 +216,7 @@ describe("workspace commands", () => {
         expect(result.value.repos).toHaveLength(1);
         expect(result.value.repos[0].status).toBe("ok");
         expect(result.value.repos[0].repairs).toHaveLength(0);
+        expect(result.value.pruned).toEqual([]);
       }
     });
 
@@ -325,6 +326,25 @@ describe("workspace commands", () => {
       if (second.ok) {
         expect(second.value.repos[0].status).toBe("ok");
         expect(second.value.repos[0].repairs).toHaveLength(0);
+        expect(second.value.pruned).toEqual([]);
+      }
+    });
+
+    it("does prune dangling pool symlinks when syncing workspace", () => {
+      const repoPath = createTestGitRepo(tempDir, "repo");
+      addWorkspace("myws", paths);
+      addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+      addWorktree("myws", "repo", "feature/gone", { newBranch: true }, paths, GIT_ENV);
+
+      // Delete pool entry to make the symlink dangle
+      rmSync(paths.worktreePoolEntry("repo", "feature-gone"), { recursive: true, force: true });
+
+      const result = syncWorkspace("myws", paths, GIT_ENV);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.pruned).toHaveLength(1);
+        expect(result.value.pruned[0].repo).toBe("repo");
+        expect(result.value.pruned[0].slug).toBe("feature-gone");
       }
     });
 

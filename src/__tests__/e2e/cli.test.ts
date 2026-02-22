@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { join } from "node:path";
-import { existsSync, lstatSync, readFileSync, readlinkSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readlinkSync, rmSync } from "node:fs";
 import { runCLI, createTempRoot, cleanupTempRoot, createGitRepo } from "./helpers";
 
 describe("E2E: CLI output shape", () => {
@@ -356,6 +356,34 @@ describe("E2E: worktree commands", () => {
     });
     expect(r.exitCode).toBe(1);
     expect(JSON.parse(r.stderr).code).toBe("SLUG_COLLISION");
+  });
+
+  it("ws worktree prune does remove dangling pool symlinks", () => {
+    runCLI(["ws", "worktree", "add", "myrepo", "feature/x", "--new"], {
+      root,
+      cwd: join(root, "myws"),
+    });
+
+    // Delete pool entry to make the workspace symlink dangle
+    rmSync(join(root, "worktrees", "myrepo", "feature-x"), { recursive: true, force: true });
+
+    const r = runCLI(["ws", "worktree", "prune"], { root, cwd: join(root, "myws") });
+    expect(r.exitCode).toBe(0);
+
+    const data = r.json?.data as Record<string, unknown>;
+    const pruned = data.pruned as Array<{ repo: string; slug: string }>;
+    expect(pruned).toHaveLength(1);
+    expect(pruned[0].repo).toBe("myrepo");
+    expect(pruned[0].slug).toBe("feature-x");
+
+    // Symlink should be gone
+    let gone = false;
+    try {
+      lstatSync(join(root, "myws", "trees", "myrepo", "feature-x"));
+    } catch {
+      gone = true;
+    }
+    expect(gone).toBe(true);
   });
 
   it("pool sharing: two workspaces, same branch, one pool entry", () => {

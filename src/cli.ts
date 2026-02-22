@@ -3,7 +3,7 @@ import { createPaths, DEFAULT_WORKSPACES_ROOT } from "./constants";
 import { inferContext } from "./context";
 import { addWorkspace, listWorkspaces, removeWorkspace, syncWorkspace } from "./commands/workspace";
 import { addRepo, listRepos, removeRepo } from "./commands/repo";
-import { addWorktree, listWorktrees, removeWorktree } from "./commands/worktree";
+import { addWorktree, listWorktrees, removeWorktree, pruneWorktrees } from "./commands/worktree";
 import { getStatus } from "./commands/status";
 import { type Result, ok } from "./types";
 
@@ -270,6 +270,16 @@ function main() {
             removeWorktree(workspace, repo, slug, { force: flag(parsed, "force") }, paths),
             porcelain,
           );
+          break;
+        }
+
+        case "prune": {
+          const workspace = ctx.workspace ?? "";
+          if (!workspace) {
+            console.error("Usage: dotclaude ws worktree prune");
+            process.exit(1);
+          }
+          output(pruneWorktrees(workspace, paths), porcelain);
           break;
         }
 

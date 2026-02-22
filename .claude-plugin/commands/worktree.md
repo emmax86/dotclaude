@@ -8,6 +8,7 @@ Manage git worktrees inside a workspace. Worktrees are stored in a shared pool u
 dotclaude ws worktree add [repo] <branch> [--new] [--from <base>]
 dotclaude ws worktree list [repo] [--porcelain]
 dotclaude ws worktree remove [repo] <slug> [--force]
+dotclaude ws worktree prune
 ```
 
 ## Subcommands
@@ -43,8 +44,17 @@ dotclaude ws worktree remove myrepo feature-auth
 dotclaude ws worktree remove myrepo feature-auth --force
 ```
 
+### prune
+
+Remove dangling pool symlinks whose targets no longer exist (e.g., after `git worktree remove` or manual deletion). Scans all repos in the workspace.
+
+```
+dotclaude ws worktree prune
+```
+
 ## Notes
 
 - Branch names are slugified (`/` → `-`) when used as directory names.
 - The pool allows multiple workspaces to share the same git worktree.
 - Default-branch symlinks (created by `repo add`) cannot be removed via `worktree remove`; use `repo remove` instead.
+- `prune` also runs automatically as part of `ws sync`.

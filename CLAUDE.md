@@ -45,7 +45,7 @@ All filesystem paths are centralised through the `Paths` object created by `crea
 
 Subcommands: `add`, `list`, `remove`, `repo`, `worktree`, `status`, `path`, `sync`.
 
-`ws sync [workspace]` — idempotent repair command. Reads `workspace.json` and recreates any missing or dangling `repos/<name>` symlinks, `trees/<repo>/` directories, and default-branch symlinks. Returns per-repo `status` of `ok`, `repaired`, or `dangling` (source path no longer a git repo).
+`ws sync [workspace]` — idempotent repair command. Reads `workspace.json` and recreates any missing or dangling `repos/<name>` symlinks, `trees/<repo>/` directories, and default-branch symlinks. Also prunes dangling pool worktree symlinks. Returns per-repo `status` of `ok`, `repaired`, or `dangling` (source path no longer a git repo).
 
 ### Plugin
 
