@@ -10,7 +10,6 @@ import {
   readPoolConfig,
   writePoolConfig,
   addPoolReference,
-  removePoolReference,
   getPoolSlugsForWorkspace,
 } from "../../lib/config";
 
@@ -206,42 +205,6 @@ describe("pool config", () => {
     if (pool.ok) {
       expect(pool.value.myrepo["feature-x"]).toContain("ws1");
       expect(pool.value.myrepo["feature-x"]).toContain("ws2");
-    }
-  });
-
-  it("removePoolReference returns remaining count", async () => {
-    await addPoolReference(poolConfigPath, "myrepo", "feature-x", "ws1");
-    await addPoolReference(poolConfigPath, "myrepo", "feature-x", "ws2");
-    const result = await removePoolReference(poolConfigPath, "myrepo", "feature-x", "ws1");
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.value.remaining).toBe(1);
-    }
-  });
-
-  it("removePoolReference cleans up empty entries (slug, then repo key)", async () => {
-    await addPoolReference(poolConfigPath, "myrepo", "feature-x", "ws1");
-    await removePoolReference(poolConfigPath, "myrepo", "feature-x", "ws1");
-    const pool = await readPoolConfig(poolConfigPath);
-    if (pool.ok) {
-      expect(pool.value.myrepo).toBeUndefined();
-    }
-  });
-
-  it("removePoolReference on non-existent repo/slug returns { remaining: 0 }", async () => {
-    const result = await removePoolReference(poolConfigPath, "myrepo", "no-slug", "ws1");
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.value.remaining).toBe(0);
-    }
-  });
-
-  it("removePoolReference on non-existent workspace in existing entry returns unchanged count", async () => {
-    await addPoolReference(poolConfigPath, "myrepo", "feature-x", "ws1");
-    const result = await removePoolReference(poolConfigPath, "myrepo", "feature-x", "ws-not-there");
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.value.remaining).toBe(1);
     }
   });
 

@@ -1,8 +1,8 @@
-import { exists, mkdir, readdir, rm, symlink } from "node:fs/promises";
+import { exists, lstat, mkdir, readdir, rm, symlink } from "node:fs/promises";
 import { dirname, relative } from "node:path";
 import { type Paths } from "../constants";
 import { type Result, ok, err, type WorktreeEntry } from "../types";
-import { readConfig, addPoolReference } from "../lib/config";
+import { readConfig, addPoolReference, getPoolSlugsForWorkspace } from "../lib/config";
 import {
   addWorktree as gitAddWorktree,
   removeWorktree as gitRemoveWorktree,
@@ -10,11 +10,7 @@ import {
   type GitEnv,
 } from "../lib/git";
 import { toSlug } from "../lib/slug";
-import {
-  classifyWorktreeEntry,
-  resolveRepoPath,
-  removePoolWorktreeReference,
-} from "../lib/worktree-utils";
+import { classifyWorktreeEntry, resolveRepoPath, removePoolWorktree } from "../lib/worktree-utils";
 
 export type { AddWorktreeOptions };
 
@@ -194,10 +190,53 @@ export async function pruneWorktrees(
         continue; // can't remove symlink (EPERM etc.) — skip this entry
       }
 
-      await removePoolWorktreeReference(workspace, repo.name, slug, { force: true }, paths, env);
+      await removePoolWorktree(
+        workspace,
+        repo.name,
+        slug,
+        { force: true, skipSymlink: true },
+        paths,
+        env,
+      );
       // Pool ref cleanup is best-effort — stale entries are harmless
 
       pruned.push({ repo: repo.name, slug });
+    }
+
+    // Second pass: clean up orphaned worktrees.json entries (no symlink, no pool dir)
+    // Note: first pass already updated worktrees.json, so getPoolSlugsForWorkspace
+    // returns only entries not yet cleaned.
+    const slugsResult = await getPoolSlugsForWorkspace(
+      paths.worktreePoolConfig,
+      repo.name,
+      workspace,
+    );
+    if (slugsResult.ok) {
+      for (const slug of slugsResult.value) {
+        const wtPath = paths.worktreeDir(workspace, repo.name, slug);
+        const poolEntry = paths.worktreePoolEntry(repo.name, slug);
+        // Symlink present means this entry is live or dangling-but-visible (first pass handles it)
+        let symlinkExists = false;
+        try {
+          await lstat(wtPath);
+          symlinkExists = true;
+        } catch {
+          /* gone */
+        }
+        if (symlinkExists) continue;
+        // Pool dir still present means the worktree is live
+        if (await exists(poolEntry)) continue;
+
+        const removeResult = await removePoolWorktree(
+          workspace,
+          repo.name,
+          slug,
+          { force: true, skipSymlink: true },
+          paths,
+          env,
+        );
+        if (removeResult.ok) pruned.push({ repo: repo.name, slug });
+      }
     }
   }
 
@@ -216,16 +255,31 @@ export async function removeWorktree(
   const kind = await classifyWorktreeEntry(wtPath, paths);
 
   if (kind === null) {
+    // Symlink is gone — check if worktrees.json still has this slug for this workspace
+    const slugsResult = await getPoolSlugsForWorkspace(paths.worktreePoolConfig, repo, workspace);
+    if (slugsResult.ok && slugsResult.value.includes(slug)) {
+      const removeResult = await removePoolWorktree(
+        workspace,
+        repo,
+        slug,
+        { ...options, skipSymlink: true },
+        paths,
+        env,
+      );
+      if (!removeResult.ok) return removeResult;
+      if (removeResult.value.gitWarning) {
+        return err(removeResult.value.gitWarning, "GIT_WORKTREE_REMOVE_ERROR");
+      }
+      return ok(undefined);
+    }
     return err(`Worktree "${slug}" not found in repo "${repo}"`, "WORKTREE_NOT_FOUND");
   }
 
   if (kind === "pool") {
-    const refResult = await removePoolWorktreeReference(workspace, repo, slug, options, paths, env);
-    if (!refResult.ok) return refResult;
-    try {
-      await rm(wtPath);
-    } catch {
-      /* best-effort */
+    const removeResult = await removePoolWorktree(workspace, repo, slug, options, paths, env);
+    if (!removeResult.ok) return removeResult;
+    if (removeResult.value.gitWarning) {
+      return err(removeResult.value.gitWarning, "GIT_WORKTREE_REMOVE_ERROR");
     }
     return ok(undefined);
   }

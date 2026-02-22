@@ -1,12 +1,20 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { dirname, join } from "node:path";
-import { mkdirSync, symlinkSync, writeFileSync, chmodSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "../helpers";
 import { createPaths } from "../../constants";
 import {
   classifyWorktreeEntry,
   resolveRepoPath,
-  removePoolWorktreeReference,
+  removePoolWorktree,
 } from "../../lib/worktree-utils";
 import { addWorkspace } from "../../commands/workspace";
 import { addRepo } from "../../commands/repo";
@@ -118,7 +126,7 @@ describe("resolveRepoPath", () => {
   });
 });
 
-describe("removePoolWorktreeReference", () => {
+describe("removePoolWorktree", () => {
   let tempDir: string;
   let repoPath: string;
   let paths: ReturnType<typeof createPaths>;
@@ -135,26 +143,88 @@ describe("removePoolWorktreeReference", () => {
     cleanup(tempDir);
   });
 
-  it("removes pool entry when it is the last reference", async () => {
+  it("does remove tree symlink, pool dir, and worktrees.json when last reference", async () => {
     await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
+    const wtPath = paths.worktreeDir("myws", "myrepo", "feature-x");
     const poolEntry = paths.worktreePoolEntry("myrepo", "feature-x");
 
-    const result = await removePoolWorktreeReference(
-      "myws",
-      "myrepo",
-      "feature-x",
-      {},
-      paths,
-      GIT_ENV,
-    );
+    const result = await removePoolWorktree("myws", "myrepo", "feature-x", {}, paths, GIT_ENV);
     expect(result.ok).toBe(true);
 
-    // Pool entry is gone (git worktree removed)
-    const { existsSync } = require("node:fs");
+    let symlinkGone = false;
+    try {
+      lstatSync(wtPath);
+    } catch {
+      symlinkGone = true;
+    }
+    expect(symlinkGone).toBe(true);
     expect(existsSync(poolEntry)).toBe(false);
+    const pool = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+    expect(pool.myrepo).toBeUndefined();
   });
 
-  it("preserves pool entry when other workspaces reference it", async () => {
+  it("does update worktrees.json when pool directory is already gone", async () => {
+    await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
+    rmSync(paths.worktreePoolEntry("myrepo", "feature-x"), { recursive: true, force: true });
+
+    const result = await removePoolWorktree("myws", "myrepo", "feature-x", {}, paths, GIT_ENV);
+    expect(result.ok).toBe(true);
+
+    const pool = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+    expect(pool.myrepo).toBeUndefined();
+  });
+
+  it("does skip git call when pool directory does not exist", async () => {
+    await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
+    rmSync(paths.worktreePoolEntry("myrepo", "feature-x"), { recursive: true, force: true });
+
+    const result = await removePoolWorktree("myws", "myrepo", "feature-x", {}, paths, GIT_ENV);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.gitWarning).toBeUndefined();
+    }
+  });
+
+  it("does remove tree symlink even when git worktree remove fails", async () => {
+    await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
+    writeFileSync(join(paths.worktreePoolEntry("myrepo", "feature-x"), "dirty.txt"), "dirty");
+    const wtPath = paths.worktreeDir("myws", "myrepo", "feature-x");
+
+    const result = await removePoolWorktree("myws", "myrepo", "feature-x", {}, paths, GIT_ENV);
+    expect(result.ok).toBe(true);
+
+    let symlinkGone = false;
+    try {
+      lstatSync(wtPath);
+    } catch {
+      symlinkGone = true;
+    }
+    expect(symlinkGone).toBe(true);
+  });
+
+  it("does update worktrees.json even when git worktree remove fails", async () => {
+    await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
+    writeFileSync(join(paths.worktreePoolEntry("myrepo", "feature-x"), "dirty.txt"), "dirty");
+
+    const result = await removePoolWorktree("myws", "myrepo", "feature-x", {}, paths, GIT_ENV);
+    expect(result.ok).toBe(true);
+
+    const pool = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+    expect(pool.myrepo).toBeUndefined();
+  });
+
+  it("does return gitWarning when git worktree remove fails", async () => {
+    await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
+    writeFileSync(join(paths.worktreePoolEntry("myrepo", "feature-x"), "dirty.txt"), "dirty");
+
+    const result = await removePoolWorktree("myws", "myrepo", "feature-x", {}, paths, GIT_ENV);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.gitWarning).toBeDefined();
+    }
+  });
+
+  it("does keep pool dir when other workspaces still reference it", async () => {
     await addWorkspace("otherws", paths);
     await addRepo("otherws", repoPath, undefined, paths, GIT_ENV);
     await addWorktree("myws", "myrepo", "feature/shared", { newBranch: true }, paths, GIT_ENV);
@@ -162,34 +232,111 @@ describe("removePoolWorktreeReference", () => {
 
     const poolEntry = paths.worktreePoolEntry("myrepo", "feature-shared");
 
-    const result = await removePoolWorktreeReference(
-      "myws",
-      "myrepo",
-      "feature-shared",
-      {},
-      paths,
-      GIT_ENV,
-    );
+    const result = await removePoolWorktree("myws", "myrepo", "feature-shared", {}, paths, GIT_ENV);
     expect(result.ok).toBe(true);
-
-    // Pool entry persists for otherws
-    const { existsSync } = require("node:fs");
     expect(existsSync(poolEntry)).toBe(true);
   });
 
-  it("handles dangling repo symlink — cleans up pool entry directly", async () => {
-    await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
-    // Remove actual repo to make it dangling
-    rmSync(repoPath, { recursive: true, force: true });
+  it("does remove only this workspace from worktrees.json when other refs remain", async () => {
+    await addWorkspace("otherws", paths);
+    await addRepo("otherws", repoPath, undefined, paths, GIT_ENV);
+    await addWorktree("myws", "myrepo", "feature/shared", { newBranch: true }, paths, GIT_ENV);
+    await addWorktree("otherws", "myrepo", "feature/shared", {}, paths, GIT_ENV);
 
-    const result = await removePoolWorktreeReference(
+    const result = await removePoolWorktree("myws", "myrepo", "feature-shared", {}, paths, GIT_ENV);
+    expect(result.ok).toBe(true);
+
+    const pool = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+    expect(pool.myrepo["feature-shared"]).not.toContain("myws");
+    expect(pool.myrepo["feature-shared"]).toContain("otherws");
+  });
+
+  it("does skip symlink removal when skipSymlink is true", async () => {
+    await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
+    const wtPath = paths.worktreeDir("myws", "myrepo", "feature-x");
+
+    const result = await removePoolWorktree(
       "myws",
       "myrepo",
       "feature-x",
-      {},
+      { skipSymlink: true },
       paths,
       GIT_ENV,
     );
     expect(result.ok).toBe(true);
+
+    expect(lstatSync(wtPath).isSymbolicLink()).toBe(true);
+    const pool = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+    expect(pool.myrepo).toBeUndefined();
+    expect(existsSync(paths.worktreePoolEntry("myrepo", "feature-x"))).toBe(false);
+  });
+
+  it("does succeed when worktrees.json does not exist", async () => {
+    await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
+    rmSync(paths.worktreePoolConfig, { force: true });
+
+    const result = await removePoolWorktree("myws", "myrepo", "feature-x", {}, paths, GIT_ENV);
+    expect(result.ok).toBe(true);
+  });
+
+  it("does not remove pool dir when workspace is not listed for the slug", async () => {
+    await addWorkspace("otherws", paths);
+    await addRepo("otherws", repoPath, undefined, paths, GIT_ENV);
+    await addWorktree("otherws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
+
+    const poolEntry = paths.worktreePoolEntry("myrepo", "feature-x");
+
+    const result = await removePoolWorktree("myws", "myrepo", "feature-x", {}, paths, GIT_ENV);
+    expect(result.ok).toBe(true);
+    expect(existsSync(poolEntry)).toBe(true);
+  });
+
+  it("does not remove pool dir when worktrees.json entry is missing", async () => {
+    // Shared pool worktree owned by otherws; worktrees.json entry is absent for myws.
+    // removePoolWorktree("myws",...) should NOT delete the pool dir — we have no evidence
+    // it is the last reference when the metadata is missing.
+    await addWorkspace("otherws", paths);
+    await addRepo("otherws", repoPath, undefined, paths, GIT_ENV);
+    await addWorktree("otherws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
+
+    const poolEntry = paths.worktreePoolEntry("myrepo", "feature-x");
+
+    // Delete worktrees.json so the entry for otherws is lost
+    rmSync(paths.worktreePoolConfig, { force: true });
+
+    const result = await removePoolWorktree("myws", "myrepo", "feature-x", {}, paths, GIT_ENV);
+    expect(result.ok).toBe(true);
+    // Pool dir must survive — we can't verify no other workspace references it
+    expect(existsSync(poolEntry)).toBe(true);
+  });
+});
+
+describe("removePoolWorktree (dangling repo)", () => {
+  let tempDir: string;
+  let repoPath: string;
+  let paths: ReturnType<typeof createPaths>;
+
+  beforeEach(async () => {
+    tempDir = createTestDir();
+    repoPath = await createTestGitRepo(tempDir, "myrepo");
+    paths = createPaths(join(tempDir, "workspaces"));
+    await addWorkspace("myws", paths);
+    await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
+  });
+
+  afterEach(() => {
+    cleanup(tempDir);
+  });
+
+  it("does succeed and clean worktrees.json when repo symlink is dangling", async () => {
+    await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
+    // Remove actual repo to make repo symlink dangle
+    rmSync(repoPath, { recursive: true, force: true });
+
+    const result = await removePoolWorktree("myws", "myrepo", "feature-x", {}, paths, GIT_ENV);
+    expect(result.ok).toBe(true);
+
+    const pool = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+    expect(pool.myrepo).toBeUndefined();
   });
 });

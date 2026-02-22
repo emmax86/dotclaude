@@ -6,11 +6,8 @@ import { readConfig, addRepoToConfig, removeRepoFromConfig } from "../lib/config
 import { generateVSCodeWorkspace } from "../lib/vscode";
 import { generateClaudeFiles } from "../lib/claude";
 import { isGitRepo, getDefaultBranch, removeWorktree, type GitEnv } from "../lib/git";
-import {
-  classifyWorktreeEntry,
-  resolveRepoPath,
-  removePoolWorktreeReference,
-} from "../lib/worktree-utils";
+import { classifyWorktreeEntry, resolveRepoPath, removePoolWorktree } from "../lib/worktree-utils";
+import { getPoolSlugsForWorkspace } from "../lib/config";
 import { toSlug } from "../lib/slug";
 
 export interface RepoInfo extends RepoEntry {
@@ -150,6 +147,8 @@ export async function removeRepo(
   env?: GitEnv,
 ): Promise<Result<void>> {
   const repoDir = paths.repoDir(workspace, name);
+  const forceErrors: string[] = [];
+
   if (await exists(repoDir)) {
     // Three-way classification of entries:
     // 1. Default-branch symlink (../trees/) — skip, cleaned by rm(repoDir)
@@ -169,6 +168,20 @@ export async function removeRepo(
       }
     }
 
+    // Union with worktrees.json to catch metadata-only entries (symlink externally deleted)
+    const jsonSlugsResult = await getPoolSlugsForWorkspace(
+      paths.worktreePoolConfig,
+      name,
+      workspace,
+    );
+    if (jsonSlugsResult.ok) {
+      for (const slug of jsonSlugsResult.value) {
+        if (!poolSlugs.includes(slug)) {
+          poolSlugs.push(slug);
+        }
+      }
+    }
+
     const totalWorktrees = poolSlugs.length + legacySlugs.length;
 
     if (totalWorktrees > 0 && !options.force) {
@@ -184,19 +197,18 @@ export async function removeRepo(
       const realRepoPath = repoPathResult.ok ? repoPathResult.value : "";
 
       for (const slug of poolSlugs) {
-        const removeResult = await removePoolWorktreeReference(
+        const removeResult = await removePoolWorktree(
           workspace,
           name,
           slug,
-          { force: true },
+          { force: true, skipSymlink: true },
           paths,
           env,
         );
         if (!removeResult.ok) {
-          return err(
-            `Failed to remove pool worktree ${slug}: ${removeResult.error}`,
-            "WORKTREE_REMOVE_FAILED",
-          );
+          forceErrors.push(`${slug}: ${removeResult.error}`);
+        } else if (removeResult.value.gitWarning) {
+          forceErrors.push(`${slug}: ${removeResult.value.gitWarning}`);
         }
       }
 
@@ -205,15 +217,14 @@ export async function removeRepo(
         if (realRepoPath) {
           const removeResult = await removeWorktree(realRepoPath, wtPath, true, env);
           if (!removeResult.ok) {
-            return err(
-              `Failed to remove worktree ${slug}: ${removeResult.error}`,
-              "WORKTREE_REMOVE_FAILED",
-            );
+            forceErrors.push(`${slug}: ${removeResult.error}`);
           }
         }
       }
     }
 
+    // Always run even when forceErrors occurred — rm(repoDir) cleans workspace symlinks
+    // that were left in place by skipSymlink: true above.
     await rm(repoDir, { recursive: true, force: true });
   }
 
@@ -226,6 +237,13 @@ export async function removeRepo(
 
   const claudeResult = await generateClaudeFiles(workspace, paths, env);
   if (!claudeResult.ok) return claudeResult;
+
+  if (forceErrors.length > 0) {
+    return err(
+      `Failed to remove some worktrees:\n${forceErrors.join("\n")}`,
+      "WORKTREE_REMOVE_FAILED",
+    );
+  }
 
   return ok(undefined);
 }
