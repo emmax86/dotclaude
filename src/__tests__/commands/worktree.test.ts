@@ -751,4 +751,90 @@ describe("worktree commands", () => {
       expect(myrepo2Gone).toBe(true);
     });
   });
+
+  describe("setup after worktree add", () => {
+    it("skips setup when noSetup is true", async () => {
+      const result = await addWorktree(
+        "myws",
+        "myrepo",
+        "setup-skip",
+        { newBranch: true, noSetup: true },
+        paths,
+        GIT_ENV,
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.setupSkipped).toBe(true);
+        expect(result.value.setupResult).toBeUndefined();
+      }
+    });
+
+    it("skips setup and returns setupSkipped when no ecosystem and no commands.json", async () => {
+      // repoPath has no lockfile or commands.json — no ecosystem detected
+      const result = await addWorktree(
+        "myws",
+        "myrepo",
+        "setup-no-eco",
+        { newBranch: true },
+        paths,
+        GIT_ENV,
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.setupSkipped).toBe(true);
+        expect(result.value.setupResult).toBeUndefined();
+      }
+    });
+
+    it("runs setup command from commands.json and captures result", async () => {
+      mkdirSync(join(repoPath, ".dotclaude"), { recursive: true });
+      writeFileSync(
+        join(repoPath, ".dotclaude", "commands.json"),
+        JSON.stringify({ setup: ["echo", "setup-ran"] }),
+      );
+      const result = await addWorktree(
+        "myws",
+        "myrepo",
+        "setup-runs",
+        { newBranch: true },
+        paths,
+        GIT_ENV,
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.setupResult).toBeDefined();
+        expect(result.value.setupResult?.exitCode).toBe(0);
+        expect(result.value.setupResult?.stdout.trim()).toBe("setup-ran");
+        expect(result.value.setupSkipped).toBeUndefined();
+      }
+    });
+
+    it("setup failure is non-fatal — worktree is still created", async () => {
+      mkdirSync(join(repoPath, ".dotclaude"), { recursive: true });
+      writeFileSync(
+        join(repoPath, ".dotclaude", "commands.json"),
+        JSON.stringify({ setup: ["false"] }),
+      );
+      const result = await addWorktree(
+        "myws",
+        "myrepo",
+        "setup-fails",
+        { newBranch: true },
+        paths,
+        GIT_ENV,
+      );
+      // Worktree is created successfully despite setup failure
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.slug).toBe("setup-fails");
+        expect(result.value.setupResult).toBeDefined();
+        expect(result.value.setupResult?.exitCode).not.toBe(0);
+      }
+      // Pool entry and workspace symlink exist
+      expect(existsSync(paths.worktreePoolEntry("myrepo", "setup-fails"))).toBe(true);
+      expect(lstatSync(paths.worktreeDir("myws", "myrepo", "setup-fails")).isSymbolicLink()).toBe(
+        true,
+      );
+    });
+  });
 });

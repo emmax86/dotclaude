@@ -121,16 +121,34 @@ describe("resolveCommand", () => {
     expect(result).toEqual(["bun", "test"]);
   });
 
-  it("ecosystem format command used when no config", () => {
+  it("ecosystem format command used when no config — {file} dropped when not provided", () => {
     const eco = {
       name: "uv",
       signal: "uv.lock",
       setup: ["uv", "sync"],
-      format: ["uv", "run", "ruff", "format"],
+      format: ["uv", "run", "ruff", "format", "{file}"],
       test: ["uv", "run", "pytest"],
     };
     const result = resolveCommand("format", null, eco, {});
     expect(result).toEqual(["uv", "run", "ruff", "format"]);
+  });
+
+  it("ecosystem format command substitutes {file} when file provided", () => {
+    const eco = {
+      name: "bun",
+      signal: "bun.lock",
+      setup: ["bun", "install"],
+      format: ["bunx", "prettier", "--write", "{file}"],
+      test: ["bun", "test"],
+    };
+    const result = resolveCommand("format", null, eco, { file: "src/cli.ts" });
+    expect(result).toEqual(["bunx", "prettier", "--write", "src/cli.ts"]);
+  });
+
+  it("{file} placeholder removed when file not provided", () => {
+    const config = { format: ["prettier", "--write", "{file}"] };
+    const result = resolveCommand("format", config, null, {});
+    expect(result).toEqual(["prettier", "--write"]);
   });
 });
 

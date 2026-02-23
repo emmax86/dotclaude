@@ -121,6 +121,10 @@ export async function resolveRepoFromFile(
     return err(`File not found: ${filePath}`, "REPO_NOT_RESOLVED");
   }
 
+  // Read workspace config once — used by both pool-path and main-worktree checks below
+  const configResult = await readConfig(paths.workspaceConfig(workspace));
+  if (!configResult.ok) return err("Workspace not found", "REPO_NOT_RESOLVED");
+
   // Check if the file is under the shared worktrees pool
   const poolRoot = paths.worktreePool;
   const poolPrefix = poolRoot + sep;
@@ -130,16 +134,13 @@ export async function resolveRepoFromFile(
     if (parts.length >= 2) {
       const repo = parts[0];
       const slug = parts[1];
-      const configResult = await readConfig(paths.workspaceConfig(workspace));
-      if (configResult.ok && configResult.value.repos.find((r) => r.name === repo)) {
+      if (configResult.value.repos.find((r) => r.name === repo)) {
         return ok({ repo, worktreeRoot: paths.worktreePoolEntry(repo, slug) });
       }
     }
   }
 
   // Fall back to matching against registered repo main-worktree paths
-  const configResult = await readConfig(paths.workspaceConfig(workspace));
-  if (!configResult.ok) return err("Workspace not found", "REPO_NOT_RESOLVED");
 
   for (const repoEntry of configResult.value.repos) {
     let realRepoPath: string;

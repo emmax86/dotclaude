@@ -127,10 +127,12 @@ export function createMcpServer(
         branch: z.string().describe("Branch name"),
         newBranch: z.boolean().optional().describe("Create a new branch"),
         from: z.string().optional().describe("Base branch to create from"),
+        noSetup: z.boolean().optional().describe("Skip automatic setup after checkout"),
       },
     },
-    async ({ repo, branch, newBranch, from }) => {
-      const run = async () => addWorktree(workspace, repo, branch, { newBranch, from }, paths);
+    async ({ repo, branch, newBranch, from, noSetup }) => {
+      const run = async () =>
+        addWorktree(workspace, repo, branch, { newBranch, from, noSetup }, paths);
       const result = await (writeLock ? writeLock.run(run) : run());
       if (!result.ok) return toErrorContent(result.error);
       return toJsonContent(result.value);

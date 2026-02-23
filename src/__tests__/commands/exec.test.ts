@@ -24,6 +24,12 @@ describe("execCommand", () => {
     cleanup(tempDir);
   });
 
+  it("returns REPO_NOT_RESOLVED when neither repo nor file is specified", async () => {
+    const result = await execCommand("ws", "test", {}, paths);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe("REPO_NOT_RESOLVED");
+  });
+
   it("returns WORKSPACE_NOT_FOUND for unknown workspace", async () => {
     const result = await execCommand("ghost", "setup", {}, paths);
     expect(result.ok).toBe(false);

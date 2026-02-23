@@ -318,6 +318,7 @@ async function main() {
               {
                 newBranch: flag(parsed, "new"),
                 from: flagValue(parsed, "from"),
+                noSetup: flag(parsed, "no-setup"),
               },
               paths,
             ),

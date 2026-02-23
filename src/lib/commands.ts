@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { REPO_COMMANDS_CONFIG } from "../constants";
 import { type Ecosystem } from "./detect";
 
 export type StandardCommand = "setup" | "format" | "test" | "test:file" | "test:match" | "check";
@@ -24,7 +25,7 @@ export interface SpawnOptions {
 }
 
 export async function loadCommandConfig(repoRoot: string): Promise<CommandConfig | null> {
-  const configPath = join(repoRoot, ".dotclaude", "commands.json");
+  const configPath = join(repoRoot, REPO_COMMANDS_CONFIG);
   try {
     const raw = readFileSync(configPath, "utf8");
     return JSON.parse(raw) as CommandConfig;
@@ -61,11 +62,13 @@ export function resolveCommand(
 
   if (!cmd) return null;
 
-  // Substitute {file} and {match} placeholders — each replaces exactly one array element
-  return cmd.map((arg) => {
-    if (arg === "{file}" && opts.file !== undefined) return opts.file;
-    if (arg === "{match}" && opts.match !== undefined) return opts.match;
-    return arg;
+  // Substitute {file} and {match} placeholders — each replaces exactly one array element.
+  // Unsubstituted placeholders (opts.file/opts.match not provided) are removed from the array
+  // so commands like `prettier --write {file}` degrade gracefully to `prettier --write`.
+  return cmd.flatMap((arg) => {
+    if (arg === "{file}") return opts.file !== undefined ? [opts.file] : [];
+    if (arg === "{match}") return opts.match !== undefined ? [opts.match] : [];
+    return [arg];
   });
 }
 

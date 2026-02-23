@@ -61,10 +61,10 @@ describe("detectEcosystem", () => {
     expect(result!.setup).toEqual(["bun", "install"]);
   });
 
-  it("bun format command includes --write placeholder slot", () => {
+  it("bun format command includes --write and {file} placeholder", () => {
     writeFileSync(join(tempDir, "bun.lock"), "");
     const result = detectEcosystem(tempDir);
-    expect(result!.format).toEqual(["bunx", "prettier", "--write"]);
+    expect(result!.format).toEqual(["bunx", "prettier", "--write", "{file}"]);
   });
 
   it("bun test command is array form", () => {
@@ -73,10 +73,10 @@ describe("detectEcosystem", () => {
     expect(result!.test).toEqual(["bun", "test"]);
   });
 
-  it("uv format uses ruff format", () => {
+  it("uv format uses ruff format with {file} placeholder", () => {
     writeFileSync(join(tempDir, "uv.lock"), "");
     const result = detectEcosystem(tempDir);
-    expect(result!.format).toEqual(["uv", "run", "ruff", "format"]);
+    expect(result!.format).toEqual(["uv", "run", "ruff", "format", "{file}"]);
   });
 
   it("uv test uses pytest", () => {
