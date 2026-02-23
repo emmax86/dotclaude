@@ -57,7 +57,7 @@ describe("discoverDaemon", () => {
 describe("startDaemon", () => {
   let tempDir: string;
   let paths: ReturnType<typeof createPaths>;
-  let stopFn: (() => void) | null = null;
+  let stopFn: (() => Promise<void>) | null = null;
 
   beforeEach(() => {
     tempDir = createTestDir();
@@ -65,7 +65,7 @@ describe("startDaemon", () => {
   });
 
   afterEach(async () => {
-    stopFn?.();
+    await stopFn?.();
     stopFn = null;
     cleanup(tempDir);
   });
@@ -130,7 +130,7 @@ describe("startDaemon", () => {
     const configPath = paths.daemonConfig("ws");
 
     expect(existsSync(configPath)).toBe(true);
-    info.stop();
+    await info.stop();
     stopFn = null;
     expect(existsSync(configPath)).toBe(false);
   });
@@ -141,7 +141,7 @@ describe("startDaemon", () => {
 describe("MCP over HTTP", () => {
   let tempDir: string;
   let paths: ReturnType<typeof createPaths>;
-  let stopFn: (() => void) | null = null;
+  let stopFn: (() => Promise<void>) | null = null;
   let clients: Client[] = [];
 
   beforeEach(() => {
@@ -157,7 +157,7 @@ describe("MCP over HTTP", () => {
       } catch {}
     }
     clients = [];
-    stopFn?.();
+    await stopFn?.();
     stopFn = null;
     cleanup(tempDir);
   });

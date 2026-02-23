@@ -15,7 +15,7 @@ export interface DaemonOptions {
 export interface DaemonInfo {
   url: string;
   pid: number;
-  stop: () => void;
+  stop: () => Promise<void>;
 }
 
 export async function startDaemon(options: DaemonOptions): Promise<DaemonInfo> {
@@ -49,10 +49,10 @@ export async function startDaemon(options: DaemonOptions): Promise<DaemonInfo> {
     } catch {}
   }
 
-  function shutdown() {
+  async function shutdown() {
     cancelGraceTimer();
     removeDiscoveryFile();
-    httpServer.stop(true);
+    await httpServer.stop(true);
   }
 
   function onSessionClosed(sessionId: string) {
@@ -63,6 +63,8 @@ export async function startDaemon(options: DaemonOptions): Promise<DaemonInfo> {
     }
   }
 
+  // Bind to loopback only. Discovery file at 0o600 prevents cross-user port discovery.
+  // Any same-user process can still connect via port scanning — acceptable for a local dev tool.
   const httpServer = Bun.serve({
     hostname: "127.0.0.1",
     port,
@@ -131,18 +133,17 @@ export async function startDaemon(options: DaemonOptions): Promise<DaemonInfo> {
   // Start grace timer — no sessions yet
   startGraceTimer();
 
-  const sigHandler = () => shutdown();
+  const sigHandler = () => void shutdown().then(() => process.exit(0));
   process.on("SIGINT", sigHandler);
   process.on("SIGTERM", sigHandler);
 
   return {
     url: mcpUrl,
     pid: process.pid,
-    stop: () => {
+    stop: async () => {
       process.off("SIGINT", sigHandler);
       process.off("SIGTERM", sigHandler);
-      cancelGraceTimer();
-      shutdown();
+      await shutdown();
     },
   };
 }
@@ -194,6 +195,6 @@ export async function discoverDaemon(workspace: string, paths: Paths): Promise<D
   return {
     url: data.url,
     pid: data.pid,
-    stop: () => {}, // discovery doesn't own the daemon
+    stop: async () => {}, // discovery doesn't own the daemon
   };
 }
