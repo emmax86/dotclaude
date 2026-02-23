@@ -43,3 +43,6 @@ export function createPaths(root: string): Paths {
 }
 
 export const DEFAULT_WORKSPACES_ROOT = join(process.env.HOME ?? "/tmp", "dotclaude-workspaces");
+
+/** Path to per-repo command overrides, relative to the repo root. */
+export const REPO_COMMANDS_CONFIG = join(".dotclaude", "commands.json");

@@ -5,6 +5,7 @@ import { getStatus } from "./commands/status";
 import { listRepos } from "./commands/repo";
 import { listWorktrees, addWorktree, removeWorktree } from "./commands/worktree";
 import { syncWorkspace } from "./commands/workspace";
+import { execCommand } from "./commands/exec";
 import { type AsyncMutex } from "./lib/mutex";
 
 interface McpServerOptions {
@@ -151,6 +152,28 @@ export function createMcpServer(
       const result = await (writeLock ? writeLock.run(run) : run());
       if (!result.ok) return toErrorContent(result.error);
       return toJsonContent({ ok: true });
+    },
+  );
+
+  server.registerTool(
+    "workspace_exec",
+    {
+      description:
+        "Run a standard command (setup, format, test, check) in a repo. Auto-detects the tool from lockfiles; per-repo .dotclaude/commands.json overrides take precedence.",
+      inputSchema: {
+        command: z
+          .enum(["setup", "format", "test", "test:file", "test:match", "check"])
+          .describe("Standard command to run"),
+        repo: z.string().optional().describe("Repo name (overrides file-based resolution)"),
+        file: z.string().optional().describe("Target file path (triggers repo resolution)"),
+        match: z.string().optional().describe("Test pattern filter for test:match"),
+        dryRun: z.boolean().optional().describe("Return resolved command without executing"),
+      },
+    },
+    async ({ command, repo, file, match, dryRun }) => {
+      const result = await execCommand(workspace, command, { repo, file, match, dryRun }, paths);
+      if (!result.ok) return toErrorContent(`${result.error} [${result.code}]`);
+      return toJsonContent(result.value);
     },
   );
 

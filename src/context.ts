@@ -1,6 +1,8 @@
 import { exists, realpath } from "node:fs/promises";
+import { realpathSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
-import { type Context } from "./types";
+import { type Context, type Result, ok, err } from "./types";
+import { type Paths } from "./constants";
 import { readConfig } from "./lib/config";
 
 async function tryRealpath(p: string): Promise<string> {
@@ -98,4 +100,58 @@ export async function inferContext(cwd: string, workspacesRoot: string): Promise
   }
 
   return context;
+}
+
+/**
+ * Given an absolute file path, determine which registered repo it belongs to
+ * and return the repo name and the worktree root directory.
+ *
+ * Checks pool worktrees first (path under {root}/worktrees/), then falls back
+ * to matching against each repo's registered main-worktree path.
+ */
+export async function resolveRepoFromFile(
+  filePath: string,
+  workspace: string,
+  paths: Paths,
+): Promise<Result<{ repo: string; worktreeRoot: string }>> {
+  let resolvedPath: string;
+  try {
+    resolvedPath = realpathSync(filePath);
+  } catch {
+    return err(`File not found: ${filePath}`, "REPO_NOT_RESOLVED");
+  }
+
+  // Check if the file is under the shared worktrees pool
+  const poolRoot = paths.worktreePool;
+  const poolPrefix = poolRoot + sep;
+  if (resolvedPath.startsWith(poolPrefix)) {
+    const rel = resolvedPath.slice(poolPrefix.length);
+    const parts = rel.split(sep);
+    if (parts.length >= 2) {
+      const repo = parts[0];
+      const slug = parts[1];
+      const configResult = await readConfig(paths.workspaceConfig(workspace));
+      if (configResult.ok && configResult.value.repos.find((r) => r.name === repo)) {
+        return ok({ repo, worktreeRoot: paths.worktreePoolEntry(repo, slug) });
+      }
+    }
+  }
+
+  // Fall back to matching against registered repo main-worktree paths
+  const configResult = await readConfig(paths.workspaceConfig(workspace));
+  if (!configResult.ok) return err("Workspace not found", "REPO_NOT_RESOLVED");
+
+  for (const repoEntry of configResult.value.repos) {
+    let realRepoPath: string;
+    try {
+      realRepoPath = realpathSync(repoEntry.path);
+    } catch {
+      continue;
+    }
+    if (resolvedPath === realRepoPath || resolvedPath.startsWith(realRepoPath + sep)) {
+      return ok({ repo: repoEntry.name, worktreeRoot: realRepoPath });
+    }
+  }
+
+  return err(`Cannot determine repo for file: ${filePath}`, "REPO_NOT_RESOLVED");
 }
