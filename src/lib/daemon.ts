@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { writeFileSync, unlinkSync, existsSync, readFileSync, mkdirSync } from "node:fs";
+import { mkdir, writeFile, unlink, access, readFile } from "node:fs/promises";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { type Paths } from "../constants.js";
 import { createMcpServer } from "../mcp-server.js";
@@ -22,7 +22,9 @@ export async function startDaemon(options: DaemonOptions): Promise<DaemonInfo> {
   const { workspace, paths, port = 0, gracePeriodMs = 30_000 } = options;
 
   const configPath = paths.workspaceConfig(workspace);
-  if (!existsSync(configPath)) {
+  try {
+    await access(configPath);
+  } catch {
     throw new Error(`Workspace not found: ${workspace}`);
   }
 
@@ -42,16 +44,16 @@ export async function startDaemon(options: DaemonOptions): Promise<DaemonInfo> {
     }
   }
 
-  function removeDiscoveryFile() {
+  async function removeDiscoveryFile() {
     const discoveryPath = paths.daemonConfig(workspace);
     try {
-      unlinkSync(discoveryPath);
+      await unlink(discoveryPath);
     } catch {}
   }
 
   async function shutdown() {
     cancelGraceTimer();
-    removeDiscoveryFile();
+    await removeDiscoveryFile();
     await httpServer.stop(true);
   }
 
@@ -124,8 +126,8 @@ export async function startDaemon(options: DaemonOptions): Promise<DaemonInfo> {
   const mcpUrl = `http://127.0.0.1:${boundPort}/mcp`;
   const discoveryPath = paths.daemonConfig(workspace);
 
-  mkdirSync(paths.workspaceDotClaude(workspace), { recursive: true });
-  writeFileSync(discoveryPath, JSON.stringify({ url: mcpUrl, pid: process.pid }), {
+  await mkdir(paths.workspaceDotClaude(workspace), { recursive: true });
+  await writeFile(discoveryPath, JSON.stringify({ url: mcpUrl, pid: process.pid }), {
     mode: 0o600,
   });
   process.stderr.write(`[daemon] started: ${mcpUrl} pid=${process.pid}\n`);
@@ -151,11 +153,15 @@ export async function startDaemon(options: DaemonOptions): Promise<DaemonInfo> {
 export async function discoverDaemon(workspace: string, paths: Paths): Promise<DaemonInfo | null> {
   const discoveryPath = paths.daemonConfig(workspace);
 
-  if (!existsSync(discoveryPath)) return null;
+  try {
+    await access(discoveryPath);
+  } catch {
+    return null;
+  }
 
   let data: { url: string; pid: number };
   try {
-    data = JSON.parse(readFileSync(discoveryPath, "utf8")) as { url: string; pid: number };
+    data = JSON.parse(await readFile(discoveryPath, "utf8")) as { url: string; pid: number };
   } catch {
     return null;
   }
@@ -164,9 +170,7 @@ export async function discoverDaemon(workspace: string, paths: Paths): Promise<D
   try {
     process.kill(data.pid, 0);
   } catch {
-    try {
-      unlinkSync(discoveryPath);
-    } catch {}
+    await unlink(discoveryPath).catch(() => {});
     return null;
   }
 
@@ -179,16 +183,12 @@ export async function discoverDaemon(workspace: string, paths: Paths): Promise<D
     if (!res.ok) throw new Error("unhealthy");
     health = (await res.json()) as { ok: boolean; workspace: string };
   } catch {
-    try {
-      unlinkSync(discoveryPath);
-    } catch {}
+    await unlink(discoveryPath).catch(() => {});
     return null;
   }
 
   if (!health.ok || health.workspace !== workspace) {
-    try {
-      unlinkSync(discoveryPath);
-    } catch {}
+    await unlink(discoveryPath).catch(() => {});
     return null;
   }
 
