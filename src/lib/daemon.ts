@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { writeFileSync, unlinkSync, existsSync, readFileSync } from "node:fs";
+import { writeFileSync, unlinkSync, existsSync, readFileSync, mkdirSync } from "node:fs";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { type Paths } from "../constants.js";
 import { createMcpServer } from "../mcp-server.js";
@@ -50,6 +50,7 @@ export async function startDaemon(options: DaemonOptions): Promise<DaemonInfo> {
   }
 
   function shutdown() {
+    cancelGraceTimer();
     removeDiscoveryFile();
     httpServer.stop(true);
   }
@@ -104,14 +105,9 @@ export async function startDaemon(options: DaemonOptions): Promise<DaemonInfo> {
             process.stderr.write(`[daemon] session opened: ${id}\n`);
           },
           onsessionclosed: (id) => {
-            onSessionClosed(id);
+            if (sessions.has(id)) onSessionClosed(id);
           },
         });
-
-        transport.onclose = () => {
-          const id = transport.sessionId;
-          if (id && sessions.has(id)) onSessionClosed(id);
-        };
 
         const server = createMcpServer(workspace, paths, { writeLock });
         await server.connect(transport);
@@ -126,6 +122,7 @@ export async function startDaemon(options: DaemonOptions): Promise<DaemonInfo> {
   const mcpUrl = `http://127.0.0.1:${boundPort}/mcp`;
   const discoveryPath = paths.daemonConfig(workspace);
 
+  mkdirSync(paths.workspaceDotClaude(workspace), { recursive: true });
   writeFileSync(discoveryPath, JSON.stringify({ url: mcpUrl, pid: process.pid }), {
     mode: 0o600,
   });

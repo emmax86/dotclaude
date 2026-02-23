@@ -5,8 +5,6 @@ import { addWorkspace, listWorkspaces, removeWorkspace, syncWorkspace } from "./
 import { addRepo, listRepos, removeRepo } from "./commands/repo";
 import { addWorktree, listWorktrees, removeWorktree, pruneWorktrees } from "./commands/worktree";
 import { getStatus } from "./commands/status";
-import { createMcpServer } from "./mcp-server";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { startDaemon, discoverDaemon } from "./lib/daemon";
 import { type Result, ok } from "./types";
 
@@ -111,6 +109,10 @@ async function main() {
       flagValue(parsed, "workspace") ?? process.env.DOTCLAUDE_WORKSPACE ?? ctx.workspace;
     const portArg = flagValue(parsed, "port");
     const port = portArg !== undefined ? parseInt(portArg, 10) : 0;
+    if (portArg !== undefined && (isNaN(port) || port < 0 || port > 65535)) {
+      console.error(`Invalid port: ${portArg}`);
+      process.exit(1);
+    }
 
     if (!workspaceName) {
       console.error(

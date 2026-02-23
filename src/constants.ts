@@ -18,7 +18,6 @@ export interface Paths {
   claudeMd: (name: string) => string;
   agentsMd: (name: string) => string;
   daemonConfig: (name: string) => string;
-  daemonLock: (name: string) => string;
 }
 
 export function createPaths(root: string): Paths {
@@ -40,7 +39,6 @@ export function createPaths(root: string): Paths {
     claudeMd: (name) => join(root, name, "CLAUDE.md"),
     agentsMd: (name) => join(root, name, "AGENTS.md"),
     daemonConfig: (name) => join(root, name, ".claude", "server.json"),
-    daemonLock: (name) => join(root, name, ".claude", "server.lock"),
   };
 }
 
