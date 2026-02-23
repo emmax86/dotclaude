@@ -16,6 +16,8 @@ export interface Paths {
   worktreePoolConfig: string;
   claudeTreesMd: (name: string) => string;
   claudeMd: (name: string) => string;
+  agentsMd: (name: string) => string;
+  daemonConfig: (name: string) => string;
 }
 
 export function createPaths(root: string): Paths {
@@ -35,6 +37,8 @@ export function createPaths(root: string): Paths {
     worktreePoolConfig: join(root, "worktrees.json"),
     claudeTreesMd: (name) => join(root, name, ".claude", "trees.md"),
     claudeMd: (name) => join(root, name, "CLAUDE.md"),
+    agentsMd: (name) => join(root, name, "AGENTS.md"),
+    daemonConfig: (name) => join(root, name, ".claude", "server.json"),
   };
 }
 

@@ -5,6 +5,7 @@ import { addWorkspace, listWorkspaces, removeWorkspace, syncWorkspace } from "./
 import { addRepo, listRepos, removeRepo } from "./commands/repo";
 import { addWorktree, listWorktrees, removeWorktree, pruneWorktrees } from "./commands/worktree";
 import { getStatus } from "./commands/status";
+import { startDaemon, discoverDaemon } from "./lib/daemon";
 import { type Result, ok } from "./types";
 
 // ---- Output helpers ----
@@ -98,8 +99,44 @@ async function main() {
   const paths = createPaths(root);
   const ctx = await inferContext(process.env.PWD ?? process.cwd(), root);
 
-  // argv[0] = cmd (ws/workspaces), argv[1] = subcommand
+  // argv[0] = cmd
   const cmd = argv[0];
+
+  // ── mcp-server subcommand ────────────────────────────────────────
+  if (cmd === "mcp-server") {
+    const parsed = parseArgs(argv.slice(1));
+    const workspaceName =
+      flagValue(parsed, "workspace") ?? process.env.DOTCLAUDE_WORKSPACE ?? ctx.workspace;
+    const portArg = flagValue(parsed, "port");
+    const port = portArg !== undefined ? parseInt(portArg, 10) : 0;
+    if (portArg !== undefined && (isNaN(port) || port < 0 || port > 65535)) {
+      console.error(`Invalid port: ${portArg}`);
+      process.exit(1);
+    }
+
+    if (!workspaceName) {
+      console.error(
+        "Usage: dotclaude mcp-server [--workspace <name>] [--port <port>]\n" +
+          "  Workspace must be specified via --workspace, DOTCLAUDE_WORKSPACE env, or inferred from cwd.",
+      );
+      process.exit(1);
+    }
+
+    // Check if already running
+    const existing = await discoverDaemon(workspaceName, paths);
+    if (existing) {
+      process.stderr.write(`[mcp-server] already running at ${existing.url}\n`);
+      process.exit(0);
+    }
+
+    const info = await startDaemon({ workspace: workspaceName, paths, port });
+    process.stderr.write(`[mcp-server] listening at ${info.url}\n`);
+
+    // Keep process alive — daemon runs until shutdown signal
+    await new Promise<void>(() => {});
+    return;
+  }
+
   if (cmd !== "workspaces" && cmd !== "ws") {
     console.error(`Unknown command: ${cmd}`);
     process.exit(1);
