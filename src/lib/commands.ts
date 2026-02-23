@@ -29,7 +29,10 @@ export async function loadCommandConfig(repoRoot: string): Promise<CommandConfig
   try {
     const raw = readFileSync(configPath, "utf8");
     return JSON.parse(raw) as CommandConfig;
-  } catch {
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
+      process.stderr.write(`[warn] Failed to parse ${configPath}: ${String(e)}\n`);
+    }
     return null;
   }
 }
@@ -47,7 +50,9 @@ export function resolveCommand(
   if (raw !== undefined) {
     // Config takes precedence
     if (typeof raw === "string") {
-      // String form: run via shell (supports && etc.)
+      // String form: run via shell (supports && etc.).
+      // Note: {file} and {match} tokens inside the string are NOT substituted —
+      // use array form (e.g. ["prettier", "--write", "{file}"]) if you need placeholders.
       cmd = ["sh", "-c", raw];
     } else {
       cmd = raw.slice();

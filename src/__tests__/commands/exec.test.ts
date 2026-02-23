@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "bun:test";
-import { join } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "../helpers";
 import { createPaths } from "../../constants";
@@ -106,6 +106,29 @@ describe("execCommand", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.exitCode).not.toBe(0);
+    }
+  });
+
+  it("resolves relative file path to absolute before command substitution", async () => {
+    mkdirSync(join(repoPath, ".dotclaude"), { recursive: true });
+    writeFileSync(
+      join(repoPath, ".dotclaude", "commands.json"),
+      JSON.stringify({ "test:file": ["bun", "test", "{file}"] }),
+    );
+    const absoluteFile = join(repoPath, "README.md");
+    const relativeFile = relative(process.cwd(), absoluteFile);
+    // Ensure the path is genuinely relative (test would be vacuous otherwise)
+    expect(relativeFile).not.toBe(absoluteFile);
+    const result = await execCommand(
+      "ws",
+      "test:file",
+      { repo: "myrepo", file: relativeFile, dryRun: true },
+      paths,
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // Command must contain the resolved absolute path, not the relative one
+      expect(result.value.command).toEqual(["bun", "test", resolve(relativeFile)]);
     }
   });
 

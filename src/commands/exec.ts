@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { type Paths } from "../constants";
 import { type Result, type ExecResult, ok, err } from "../types";
 import {
@@ -63,8 +64,9 @@ export async function execCommand(
   const ecosystem = detectEcosystem(repoEntry.path);
   const config = await loadCommandConfig(repoEntry.path);
 
-  // 5. Resolve command
-  const cmd = resolveCommand(command, config, ecosystem, { file: opts.file, match: opts.match });
+  // 5. Resolve command — resolve file to absolute so it works when cwd ≠ worktreeRoot
+  const file = opts.file ? resolve(opts.file) : undefined;
+  const cmd = resolveCommand(command, config, ecosystem, { file, match: opts.match });
   if (!cmd) {
     const detail = config
       ? `configured commands: ${Object.keys(config).join(", ") || "none"}`

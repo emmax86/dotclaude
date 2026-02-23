@@ -9,6 +9,7 @@ export interface Ecosystem {
   test: string[];
 }
 
+// Priority order: first match wins. bun > pnpm > npm > uv.
 export const ECOSYSTEMS: Ecosystem[] = [
   {
     name: "bun",
