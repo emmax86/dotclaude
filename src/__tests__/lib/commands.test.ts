@@ -72,6 +72,13 @@ describe("resolveCommand", () => {
     expect(result).toEqual(["bun", "install", "--frozen-lockfile"]);
   });
 
+  it("returns null and does not crash when config value is wrong type (e.g. number)", () => {
+    // { "setup": 42 } is structurally valid JSON but wrong type — must not throw
+    const config = { setup: 42 as unknown as string[] };
+    const result = resolveCommand("setup", config, null, {});
+    expect(result).toBeNull();
+  });
+
   it("config string-form wraps in sh -c", () => {
     const config = { setup: "bun install && bun run build" };
     const result = resolveCommand("setup", config, null, {});

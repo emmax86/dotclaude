@@ -131,6 +131,11 @@ export async function addWorktree(
   }
 
   const setupResult = await spawnCommand(setupCmd, poolEntryPath);
+  if (setupResult.exitCode !== 0) {
+    process.stderr.write(
+      `[warn] Setup command exited with code ${setupResult.exitCode} — worktree "${slug}" created but setup may be incomplete\n`,
+    );
+  }
   return ok({ ...entry, setupResult });
 }
 
