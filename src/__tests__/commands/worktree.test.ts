@@ -461,6 +461,26 @@ describe("worktree commands", () => {
       expect(lstatSync(paths.worktreeDir("myws", "myrepo", "main")).isSymbolicLink()).toBe(true);
     });
 
+    it("does prune default-branch linked symlink when HEAD is on a non-default branch and symlink is dangling (known HEAD limitation)", async () => {
+      // Known limitation: getDefaultBranch reads HEAD from repo.path, not a stored canonical
+      // default. If the user has checked out a non-default branch on their main worktree,
+      // defaultSlug will be wrong. In the double-fault case where repos/ is also dangling,
+      // the old default-branch symlink (main) will be incorrectly pruned.
+      // ws sync repairs the symlink afterward using the new HEAD value.
+      Bun.spawnSync(["git", "checkout", "-b", "feature-branch"], {
+        cwd: repoPath,
+        env: { ...process.env, ...GIT_ENV },
+      });
+      rmSync(paths.repoEntry("myrepo"), { force: true });
+
+      const result = await pruneWorktrees("myws", paths, GIT_ENV);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        const slugs = result.value.pruned.map((e) => e.slug);
+        expect(slugs).toContain("main");
+      }
+    });
+
     it("does not prune legacy directories", async () => {
       const legacyDir = paths.worktreeDir("myws", "myrepo", "legacy-slug");
       mkdirSync(legacyDir, { recursive: true });
