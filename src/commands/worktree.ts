@@ -6,6 +6,7 @@ import { readConfig, addPoolReference, getPoolSlugsForWorkspace } from "../lib/c
 import {
   addWorktree as gitAddWorktree,
   removeWorktree as gitRemoveWorktree,
+  getDefaultBranch,
   type AddWorktreeOptions,
   type GitEnv,
 } from "../lib/git";
@@ -177,9 +178,39 @@ export async function pruneWorktrees(
       continue;
     }
 
+    // Determine which slug to protect as the default-branch entry.
+    // getDefaultBranch reads HEAD from repo.path (the main worktree), so it returns the
+    // currently checked-out branch, not a stored "canonical" default. If the user has
+    // switched branches on their main worktree, this may return the wrong slug — in the
+    // obscure double-fault case where repos/ is also dangling at the same time, the old
+    // default-branch linked symlink could be incorrectly pruned. ws sync would recreate it.
+    let defaultSlug: string | null = null;
+    try {
+      const branchResult = await getDefaultBranch(repo.path, env);
+      if (branchResult.ok) defaultSlug = toSlug(branchResult.value);
+    } catch {
+      // repo.path inaccessible — treat as unknown, skip all linked entries
+    }
+
     for (const slug of entries) {
       const wtPath = paths.worktreeDir(workspace, repo.name, slug);
       const kind = await classifyWorktreeEntry(wtPath, paths);
+      if (kind === "linked") {
+        // Cannot determine default branch — skip all linked to avoid pruning it.
+        if (defaultSlug === null) continue;
+        // Default-branch linked symlinks are repaired by syncWorkspace, not pruned.
+        if (slug === defaultSlug) continue;
+        // Target exists — not dangling.
+        if (await exists(wtPath)) continue;
+        // Best-effort removal.
+        try {
+          await rm(wtPath, { force: true });
+        } catch {
+          continue;
+        }
+        pruned.push({ repo: repo.name, slug });
+        continue;
+      }
       if (kind !== "pool") continue;
       if (await exists(wtPath)) continue; // target exists — not dangling
 

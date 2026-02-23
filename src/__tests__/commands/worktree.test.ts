@@ -461,6 +461,26 @@ describe("worktree commands", () => {
       expect(lstatSync(paths.worktreeDir("myws", "myrepo", "main")).isSymbolicLink()).toBe(true);
     });
 
+    it("does prune default-branch linked symlink when HEAD is on a non-default branch and symlink is dangling (known HEAD limitation)", async () => {
+      // Known limitation: getDefaultBranch reads HEAD from repo.path, not a stored canonical
+      // default. If the user has checked out a non-default branch on their main worktree,
+      // defaultSlug will be wrong. In the double-fault case where repos/ is also dangling,
+      // the old default-branch symlink (main) will be incorrectly pruned.
+      // ws sync repairs the symlink afterward using the new HEAD value.
+      Bun.spawnSync(["git", "checkout", "-b", "feature-branch"], {
+        cwd: repoPath,
+        env: { ...process.env, ...GIT_ENV },
+      });
+      rmSync(paths.repoEntry("myrepo"), { force: true });
+
+      const result = await pruneWorktrees("myws", paths, GIT_ENV);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        const slugs = result.value.pruned.map((e) => e.slug);
+        expect(slugs).toContain("main");
+      }
+    });
+
     it("does not prune legacy directories", async () => {
       const legacyDir = paths.worktreeDir("myws", "myrepo", "legacy-slug");
       mkdirSync(legacyDir, { recursive: true });
@@ -628,6 +648,65 @@ describe("worktree commands", () => {
 
       const after = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
       expect(after.myrepo).toBeUndefined();
+    });
+
+    it("does prune dangling linked symlinks when slug does not match default branch", async () => {
+      const repoDir = paths.repoDir("myws", "myrepo");
+      const wtPath = join(repoDir, "stale-link");
+      symlinkSync("does-not-exist", wtPath);
+
+      const result = await pruneWorktrees("myws", paths, GIT_ENV);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.pruned).toHaveLength(1);
+        expect(result.value.pruned[0].repo).toBe("myrepo");
+        expect(result.value.pruned[0].slug).toBe("stale-link");
+      }
+
+      // Symlink was removed
+      let symlinkGone = false;
+      try {
+        lstatSync(wtPath);
+      } catch {
+        symlinkGone = true;
+      }
+      expect(symlinkGone).toBe(true);
+    });
+
+    it("does not prune linked symlinks when target exists", async () => {
+      const repoDir = paths.repoDir("myws", "myrepo");
+      const existingDir = join(repoDir, "_real-target");
+      mkdirSync(existingDir, { recursive: true });
+      const wtPath = join(repoDir, "real-link");
+      symlinkSync(existingDir, wtPath);
+
+      const result = await pruneWorktrees("myws", paths, GIT_ENV);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.pruned).toEqual([]);
+      }
+
+      // Symlink still exists
+      expect(lstatSync(wtPath).isSymbolicLink()).toBe(true);
+    });
+
+    it("does not prune linked symlinks when default branch cannot be determined", async () => {
+      // Create a dangling linked symlink for a non-default slug
+      const repoDir = paths.repoDir("myws", "myrepo");
+      const wtPath = join(repoDir, "stale-link");
+      symlinkSync("does-not-exist", wtPath);
+
+      // Remove the actual git repo directory so getDefaultBranch fails
+      rmSync(repoPath, { recursive: true, force: true });
+
+      const result = await pruneWorktrees("myws", paths, GIT_ENV);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.pruned).toEqual([]);
+      }
+
+      // Symlink still exists (conservative: skip all linked when default unknown)
+      expect(lstatSync(wtPath).isSymbolicLink()).toBe(true);
     });
 
     it("does continue pruning remaining entries when rm fails for one entry", async () => {
