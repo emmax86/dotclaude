@@ -197,7 +197,11 @@ export async function pruneWorktrees(
         // Target exists — not dangling.
         if (await exists(wtPath)) continue;
         // Best-effort removal.
-        try { await rm(wtPath, { force: true }); } catch { continue; }
+        try {
+          await rm(wtPath, { force: true });
+        } catch {
+          continue;
+        }
         pruned.push({ repo: repo.name, slug });
         continue;
       }
