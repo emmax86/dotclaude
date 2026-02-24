@@ -1,16 +1,16 @@
 # workspace
 
-Manage workspaces in dotclaude. A workspace groups repos and their git worktrees under a named directory.
+Manage workspaces in grove. A workspace groups repos and their git worktrees under a named directory.
 
 ## Usage
 
 ```
-dotclaude ws add <name>
-dotclaude ws list [--porcelain]
-dotclaude ws remove <name> [--force]
-dotclaude ws status [workspace]
-dotclaude ws path [workspace]
-dotclaude ws sync [workspace]
+grove ws add <name>
+grove ws list [--porcelain]
+grove ws remove <name> [--force]
+grove ws status [workspace]
+grove ws path [workspace]
+grove ws sync [workspace]
 ```
 
 ## Subcommands
@@ -20,7 +20,7 @@ dotclaude ws sync [workspace]
 Create a new workspace. Creates the directory structure including a `.claude/` dir, `workspace.json` config, and a `.code-workspace` file for VS Code.
 
 ```
-dotclaude ws add myproject
+grove ws add myproject
 ```
 
 ### list
@@ -28,8 +28,8 @@ dotclaude ws add myproject
 List all workspaces. With `--porcelain`, outputs one name per line.
 
 ```
-dotclaude ws list
-dotclaude ws list --porcelain
+grove ws list
+grove ws list --porcelain
 ```
 
 ### remove
@@ -37,8 +37,8 @@ dotclaude ws list --porcelain
 Remove a workspace directory. Fails if repos are registered unless `--force` is passed. With `--force`, removes all worktrees first.
 
 ```
-dotclaude ws remove myproject
-dotclaude ws remove myproject --force
+grove ws remove myproject
+grove ws remove myproject --force
 ```
 
 ### status
@@ -46,8 +46,8 @@ dotclaude ws remove myproject --force
 Show an overview of repos and worktrees in a workspace.
 
 ```
-dotclaude ws status myproject
-dotclaude ws status          # uses current workspace from context
+grove ws status myproject
+grove ws status          # uses current workspace from context
 ```
 
 ### path
@@ -55,8 +55,8 @@ dotclaude ws status          # uses current workspace from context
 Print the filesystem path of a workspace.
 
 ```
-dotclaude ws path myproject
-dotclaude ws path --porcelain   # plain path only
+grove ws path myproject
+grove ws path --porcelain   # plain path only
 ```
 
 ### sync
@@ -68,8 +68,8 @@ Also prunes dangling pool worktree symlinks (equivalent to running `ws worktree 
 Returns per-repo status: `ok` (nothing needed), `repaired` (something was fixed), or `dangling` (source path is no longer a git repo).
 
 ```
-dotclaude ws sync myproject
-dotclaude ws sync          # uses current workspace from context
+grove ws sync myproject
+grove ws sync          # uses current workspace from context
 ```
 
 ## Notes

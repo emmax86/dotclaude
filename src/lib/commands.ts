@@ -58,7 +58,7 @@ export function resolveCommand(
       cmd = raw.slice();
     } else {
       process.stderr.write(
-        `[warn] Command "${command}" in .dotclaude/commands.json must be a string or array, got ${typeof raw} — skipping\n`,
+        `[warn] Command "${command}" in .grove/commands.json must be a string or array, got ${typeof raw} — skipping\n`,
       );
     }
   } else if (ecosystem) {

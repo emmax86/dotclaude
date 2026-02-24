@@ -5,10 +5,10 @@ Manage git worktrees inside a workspace. Worktrees are stored in a shared pool u
 ## Usage
 
 ```
-dotclaude ws worktree add [repo] <branch> [--new] [--from <base>]
-dotclaude ws worktree list [repo] [--porcelain]
-dotclaude ws worktree remove [repo] <slug> [--force]
-dotclaude ws worktree prune
+grove ws worktree add [repo] <branch> [--new] [--from <base>]
+grove ws worktree list [repo] [--porcelain]
+grove ws worktree remove [repo] <slug> [--force]
+grove ws worktree prune
 ```
 
 ## Subcommands
@@ -21,9 +21,9 @@ Create a git worktree for a branch. The `repo` argument is optional when running
 - `--from <base>` sets the base branch when creating a new branch
 
 ```
-dotclaude ws worktree add myrepo feature/auth --new
-dotclaude ws worktree add myrepo feature/auth --new --from main
-dotclaude ws worktree add myrepo existing-branch
+grove ws worktree add myrepo feature/auth --new
+grove ws worktree add myrepo feature/auth --new --from main
+grove ws worktree add myrepo existing-branch
 ```
 
 ### list
@@ -31,8 +31,8 @@ dotclaude ws worktree add myrepo existing-branch
 List worktrees for a repo in the current workspace.
 
 ```
-dotclaude ws worktree list myrepo
-dotclaude ws worktree list myrepo --porcelain
+grove ws worktree list myrepo
+grove ws worktree list myrepo --porcelain
 ```
 
 ### remove
@@ -40,8 +40,8 @@ dotclaude ws worktree list myrepo --porcelain
 Remove a worktree. Uses `--force` to remove dirty worktrees. The workspace symlink and (if last reference) the pool entry are both removed.
 
 ```
-dotclaude ws worktree remove myrepo feature-auth
-dotclaude ws worktree remove myrepo feature-auth --force
+grove ws worktree remove myrepo feature-auth
+grove ws worktree remove myrepo feature-auth --force
 ```
 
 ### prune
@@ -49,7 +49,7 @@ dotclaude ws worktree remove myrepo feature-auth --force
 Remove dangling pool symlinks whose targets no longer exist (e.g., after `git worktree remove` or manual deletion). Scans all repos in the workspace.
 
 ```
-dotclaude ws worktree prune
+grove ws worktree prune
 ```
 
 ## Notes

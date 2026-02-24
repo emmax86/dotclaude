@@ -787,9 +787,9 @@ describe("worktree commands", () => {
     });
 
     it("runs setup command from commands.json and captures result", async () => {
-      mkdirSync(join(repoPath, ".dotclaude"), { recursive: true });
+      mkdirSync(join(repoPath, ".grove"), { recursive: true });
       writeFileSync(
-        join(repoPath, ".dotclaude", "commands.json"),
+        join(repoPath, ".grove", "commands.json"),
         JSON.stringify({ setup: ["echo", "setup-ran"] }),
       );
       const result = await addWorktree(
@@ -810,9 +810,9 @@ describe("worktree commands", () => {
     });
 
     it("setup failure is non-fatal — worktree is still created", async () => {
-      mkdirSync(join(repoPath, ".dotclaude"), { recursive: true });
+      mkdirSync(join(repoPath, ".grove"), { recursive: true });
       writeFileSync(
-        join(repoPath, ".dotclaude", "commands.json"),
+        join(repoPath, ".grove", "commands.json"),
         JSON.stringify({ setup: ["false"] }),
       );
       const result = await addWorktree(

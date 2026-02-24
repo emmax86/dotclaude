@@ -126,7 +126,7 @@ export async function startDaemon(options: DaemonOptions): Promise<DaemonInfo> {
   const mcpUrl = `http://127.0.0.1:${boundPort}/mcp`;
   const discoveryPath = paths.daemonConfig(workspace);
 
-  await mkdir(paths.workspaceDotClaude(workspace), { recursive: true });
+  await mkdir(paths.workspaceClaudeDir(workspace), { recursive: true });
   await writeFile(discoveryPath, JSON.stringify({ url: mcpUrl, pid: process.pid }), {
     mode: 0o600,
   });

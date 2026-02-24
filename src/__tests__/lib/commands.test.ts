@@ -4,7 +4,7 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { createTestDir, cleanup } from "../helpers";
 import { loadCommandConfig, resolveCommand, spawnCommand } from "../../lib/commands";
 
-const DOTCLAUDE = ".dotclaude";
+const GROVE_DIR = ".grove";
 
 describe("loadCommandConfig", () => {
   let tempDir: string;
@@ -17,15 +17,15 @@ describe("loadCommandConfig", () => {
     cleanup(tempDir);
   });
 
-  it("returns null when .dotclaude/commands.json does not exist", async () => {
+  it("returns null when .grove/commands.json does not exist", async () => {
     const result = await loadCommandConfig(tempDir);
     expect(result).toBeNull();
   });
 
   it("parses valid commands.json", async () => {
-    mkdirSync(join(tempDir, DOTCLAUDE));
+    mkdirSync(join(tempDir, GROVE_DIR));
     writeFileSync(
-      join(tempDir, DOTCLAUDE, "commands.json"),
+      join(tempDir, GROVE_DIR, "commands.json"),
       JSON.stringify({ check: ["bun", "run", "typecheck"] }),
     );
     const result = await loadCommandConfig(tempDir);
@@ -34,8 +34,8 @@ describe("loadCommandConfig", () => {
   });
 
   it("returns null on invalid JSON", async () => {
-    mkdirSync(join(tempDir, DOTCLAUDE));
-    writeFileSync(join(tempDir, DOTCLAUDE, "commands.json"), "not json");
+    mkdirSync(join(tempDir, GROVE_DIR));
+    writeFileSync(join(tempDir, GROVE_DIR, "commands.json"), "not json");
     const result = await loadCommandConfig(tempDir);
     expect(result).toBeNull();
   });

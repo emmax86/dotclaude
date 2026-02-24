@@ -26,43 +26,43 @@ export function createMcpServer(
   options?: McpServerOptions,
 ): McpServer {
   const { writeLock } = options ?? {};
-  const server = new McpServer({ name: "dotclaude", version: "1.0.0" });
+  const server = new McpServer({ name: "grove", version: "1.0.0" });
 
   // ── Resources ────────────────────────────────────────────────────
 
   server.registerResource(
     "workspace-status",
-    "dotclaude://workspace/status",
+    "grove://workspace/status",
     { description: "Current workspace state (name, repo count, worktree count)" },
     async () => {
       const result = await getStatus(workspace, paths);
       if (!result.ok)
         return {
           contents: [
-            { uri: "dotclaude://workspace/status", text: JSON.stringify({ error: result.error }) },
+            { uri: "grove://workspace/status", text: JSON.stringify({ error: result.error }) },
           ],
         };
       const { name, repos } = result.value;
       const worktreeCount = repos.reduce((sum, r) => sum + r.worktrees.length, 0);
       const data = { name, repoCount: repos.length, worktreeCount };
-      return { contents: [{ uri: "dotclaude://workspace/status", text: JSON.stringify(data) }] };
+      return { contents: [{ uri: "grove://workspace/status", text: JSON.stringify(data) }] };
     },
   );
 
   server.registerResource(
     "workspace-repos",
-    "dotclaude://workspace/repos",
+    "grove://workspace/repos",
     { description: "Registered repos with paths and status" },
     async () => {
       const result = await listRepos(workspace, paths);
       const data = result.ok ? result.value : [];
-      return { contents: [{ uri: "dotclaude://workspace/repos", text: JSON.stringify(data) }] };
+      return { contents: [{ uri: "grove://workspace/repos", text: JSON.stringify(data) }] };
     },
   );
 
   server.registerResource(
     "workspace-worktrees",
-    "dotclaude://workspace/worktrees",
+    "grove://workspace/worktrees",
     { description: "All worktrees across repos" },
     async () => {
       const reposResult = await listRepos(workspace, paths);
@@ -72,18 +72,18 @@ export function createMcpServer(
         const wtResult = await listWorktrees(workspace, repo.name, paths);
         if (wtResult.ok) all.push(...wtResult.value);
       }
-      return { contents: [{ uri: "dotclaude://workspace/worktrees", text: JSON.stringify(all) }] };
+      return { contents: [{ uri: "grove://workspace/worktrees", text: JSON.stringify(all) }] };
     },
   );
 
   server.registerResource(
     "workspace-context",
-    "dotclaude://workspace/context",
+    "grove://workspace/context",
     { description: "Full workspace context including repos and worktrees" },
     async () => {
       const result = await getStatus(workspace, paths);
       const data = result.ok ? result.value : { error: result.error };
-      return { contents: [{ uri: "dotclaude://workspace/context", text: JSON.stringify(data) }] };
+      return { contents: [{ uri: "grove://workspace/context", text: JSON.stringify(data) }] };
     },
   );
 
@@ -161,7 +161,7 @@ export function createMcpServer(
     "workspace_exec",
     {
       description:
-        "Run a standard command (setup, format, test, check) in a repo. Auto-detects the tool from lockfiles; per-repo .dotclaude/commands.json overrides take precedence.",
+        "Run a standard command (setup, format, test, check) in a repo. Auto-detects the tool from lockfiles; per-repo .grove/commands.json overrides take precedence.",
       inputSchema: {
         command: z
           .enum(["setup", "format", "test", "test:file", "test:match", "check"])

@@ -51,7 +51,7 @@ export async function addWorkspace(name: string, paths: Paths): Promise<Result<W
   }
 
   await mkdir(wsPath, { recursive: true });
-  await mkdir(paths.workspaceDotClaude(name), { recursive: true });
+  await mkdir(paths.workspaceClaudeDir(name), { recursive: true });
 
   const config: WorkspaceConfig = { name, repos: [] };
   const writeResult = await writeConfig(paths.workspaceConfig(name), config);

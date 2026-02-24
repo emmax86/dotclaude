@@ -7,18 +7,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 bun test                          # run all tests
 bun test src/__tests__/foo.test.ts  # run a single test file
-bun run build                     # compile to ./dotclaude binary
+bun run build                     # compile to ./grove binary
 bun run format                    # format with prettier
 bun run format:check              # check formatting
 ```
 
 ## Architecture
 
-`dotclaude` is a CLI tool (compiled via `bun build --compile`) that manages named **workspaces**, each containing **repos** and **worktrees**.
+`grove` is a CLI tool (compiled via `bun build --compile`) that manages named **workspaces**, each containing **repos** and **worktrees**.
 
 ### Data model
 
-- **Workspace** — a named directory under `DOTCLAUDE_ROOT` (default: `~/dotclaude-workspaces`). Contains a `workspace.json` config, a `.claude/` directory, and subdirectories per repo.
+- **Workspace** — a named directory under `GROVE_ROOT` (default: `~/grove-workspaces`). Contains a `workspace.json` config, a `.claude/` directory, and subdirectories per repo.
 - **Repo** — a git repository registered in a workspace. Stored as a symlink at `repos/{name} → <absolute-path>`. A workspace-local tree entry is also created at `{workspace}/trees/{name} → ../../repos/{name}`.
 - **Worktree** — a git worktree tracked under `{workspace}/trees/{repo}/{slug}/`. Three kinds:
   - `pool` — symlink into the shared pool at `worktrees/{repo}/{slug}`. Multiple workspaces can share the same pool entry. Tracked in `worktrees.json`.
@@ -41,7 +41,7 @@ All filesystem paths are centralised through the `Paths` object created by `crea
 
 ### CLI
 
-`src/cli.ts` handles flat arg parsing (no external parser). The top-level command is `dotclaude ws <subcommand>` (also aliased as `dotclaude workspaces`). `--porcelain` switches output from JSON to tab-separated plaintext.
+`src/cli.ts` handles flat arg parsing (no external parser). The top-level command is `grove ws <subcommand>` (also aliased as `grove workspaces`). `--porcelain` switches output from JSON to tab-separated plaintext.
 
 Subcommands: `add`, `list`, `remove`, `repo`, `worktree`, `status`, `path`, `sync`.
 

@@ -1,5 +1,5 @@
 {
-  "name": "dotclaude",
+  "name": "grove",
   "version": "0.1.0",
   "description": "Workspace management for Claude Code — group repos and git worktrees into named workspaces",
   "commands": [
@@ -22,11 +22,6 @@
       "name": "repo",
       "description": "Manage repos registered in a workspace",
       "file": "commands/repo.md"
-    },
-    {
-      "name": "code-review",
-      "description": "Run code review via the upstream skill and return a structured verdict for CI gating",
-      "file": "commands/code-review.md"
     }
   ]
 }
