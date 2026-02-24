@@ -33,3 +33,18 @@ export interface Context {
 }
 
 export type WorktreePool = Record<string, Record<string, string[]>>;
+
+export interface CommandResult {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}
+
+export interface ExecResult {
+  repo: string;
+  cwd: string;
+  command: string[];
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}

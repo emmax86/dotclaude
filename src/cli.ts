@@ -5,6 +5,7 @@ import { addWorkspace, listWorkspaces, removeWorkspace, syncWorkspace } from "./
 import { addRepo, listRepos, removeRepo } from "./commands/repo";
 import { addWorktree, listWorktrees, removeWorktree, pruneWorktrees } from "./commands/worktree";
 import { getStatus } from "./commands/status";
+import { execCommand, type StandardCommand } from "./commands/exec";
 import { startDaemon, discoverDaemon } from "./lib/daemon";
 import { type Result, ok } from "./types";
 
@@ -135,6 +136,54 @@ async function main() {
     // Keep process alive — daemon runs until shutdown signal
     await new Promise<void>(() => {});
     return;
+  }
+
+  // ── ws exec subcommand ───────────────────────────────────────────
+  if (cmd === "ws" && argv[1] === "exec") {
+    const parsed = parseArgs(argv.slice(2));
+    const workspaceName =
+      flagValue(parsed, "workspace") ?? process.env.DOTCLAUDE_WORKSPACE ?? ctx.workspace;
+    const command = parsed.positional[0] as StandardCommand | undefined;
+
+    if (!workspaceName) {
+      console.error(
+        "Usage: dotclaude ws exec <command> [file] [--match <pattern>] [--repo <name>] [--dry-run]",
+      );
+      process.exit(1);
+    }
+    if (!command) {
+      console.error("Usage: dotclaude ws exec <setup|format|test|check|test:file|test:match>");
+      process.exit(1);
+    }
+
+    const file = parsed.positional[1];
+    const result = await execCommand(
+      workspaceName,
+      command,
+      {
+        file,
+        match: flagValue(parsed, "match"),
+        repo: flagValue(parsed, "repo"),
+        dryRun: flag(parsed, "dry-run"),
+      },
+      paths,
+    );
+
+    if (!result.ok) {
+      process.stderr.write(
+        JSON.stringify({ ok: false, error: result.error, code: result.code }) + "\n",
+      );
+      process.exit(1);
+    }
+
+    const { exitCode, stdout, stderr, command: cmd2, repo, cwd } = result.value;
+    if (flag(parsed, "dry-run")) {
+      process.stdout.write(JSON.stringify({ repo, cwd, command: cmd2 }) + "\n");
+      process.exit(0);
+    }
+    if (stdout) process.stdout.write(stdout);
+    if (stderr) process.stderr.write(stderr);
+    process.exit(exitCode);
   }
 
   if (cmd !== "workspaces" && cmd !== "ws") {
@@ -269,6 +318,7 @@ async function main() {
               {
                 newBranch: flag(parsed, "new"),
                 from: flagValue(parsed, "from"),
+                noSetup: flag(parsed, "no-setup"),
               },
               paths,
             ),

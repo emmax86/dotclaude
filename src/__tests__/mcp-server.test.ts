@@ -148,12 +148,12 @@ describe("MCP server", () => {
   // ── tool listing ────────────────────────────────────────────────
 
   describe("tools", () => {
-    it("lists 5 tools", async () => {
+    it("lists 6 tools", async () => {
       await addWorkspace("ws", paths);
       const { client, server } = await connectClient("ws");
 
       const { tools } = await client.listTools();
-      expect(tools).toHaveLength(5);
+      expect(tools).toHaveLength(6);
 
       await client.close();
       await server.close();
@@ -171,6 +171,7 @@ describe("MCP server", () => {
       expect(names).toContain("workspace_remove_worktree");
       expect(names).toContain("workspace_sync");
       expect(names).toContain("workspace_path");
+      expect(names).toContain("workspace_exec");
 
       await client.close();
       await server.close();

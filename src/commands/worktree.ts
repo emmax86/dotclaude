@@ -1,7 +1,7 @@
 import { exists, lstat, mkdir, readdir, rm, symlink } from "node:fs/promises";
 import { dirname, relative } from "node:path";
 import { type Paths } from "../constants";
-import { type Result, ok, err, type WorktreeEntry } from "../types";
+import { type Result, ok, err, type WorktreeEntry, type CommandResult } from "../types";
 import { readConfig, addPoolReference, getPoolSlugsForWorkspace } from "../lib/config";
 import {
   addWorktree as gitAddWorktree,
@@ -12,17 +12,24 @@ import {
 } from "../lib/git";
 import { toSlug } from "../lib/slug";
 import { classifyWorktreeEntry, resolveRepoPath, removePoolWorktree } from "../lib/worktree-utils";
+import { detectEcosystem } from "../lib/detect";
+import { loadCommandConfig, resolveCommand, spawnCommand } from "../lib/commands";
 
 export type { AddWorktreeOptions };
+
+export interface AddWorktreeResult extends WorktreeEntry {
+  setupResult?: CommandResult;
+  setupSkipped?: boolean;
+}
 
 export async function addWorktree(
   workspace: string,
   repo: string,
   branch: string,
-  options: AddWorktreeOptions,
+  options: AddWorktreeOptions & { noSetup?: boolean },
   paths: Paths,
   env?: GitEnv,
-): Promise<Result<WorktreeEntry>> {
+): Promise<Result<AddWorktreeResult>> {
   // Validate repo is registered
   const configResult = await readConfig(paths.workspaceConfig(workspace));
   if (!configResult.ok) {
@@ -108,7 +115,28 @@ export async function addWorktree(
     return refResult;
   }
 
-  return ok({ repo, slug, branch, type: "worktree" });
+  const entry: AddWorktreeResult = { repo, slug, branch, type: "worktree" };
+
+  // Run setup in the new worktree (detect ecosystem from main repo root)
+  if (options.noSetup) {
+    return ok({ ...entry, setupSkipped: true });
+  }
+
+  const ecosystem = detectEcosystem(repoEntry.path);
+  const config = await loadCommandConfig(repoEntry.path);
+  const setupCmd = resolveCommand("setup", config, ecosystem, {});
+
+  if (!setupCmd) {
+    return ok({ ...entry, setupSkipped: true });
+  }
+
+  const setupResult = await spawnCommand(setupCmd, poolEntryPath);
+  if (setupResult.exitCode !== 0) {
+    process.stderr.write(
+      `[warn] Setup command exited with code ${setupResult.exitCode} — worktree "${slug}" created but setup may be incomplete\n`,
+    );
+  }
+  return ok({ ...entry, setupResult });
 }
 
 export async function listWorktrees(
