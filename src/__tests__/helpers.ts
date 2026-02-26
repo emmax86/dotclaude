@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 
 export function createTestDir(): string {
   // realpathSync resolves macOS /var -> /private/var symlink so paths match git output
-  return realpathSync(mkdtempSync(join(tmpdir(), "dotclaude-test-")));
+  return realpathSync(mkdtempSync(join(tmpdir(), "grove-test-")));
 }
 
 export async function createTestGitRepo(

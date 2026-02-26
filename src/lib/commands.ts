@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { REPO_COMMANDS_CONFIG } from "../constants";
 import { type Ecosystem } from "./detect";
@@ -27,13 +27,31 @@ export interface SpawnOptions {
 export async function loadCommandConfig(repoRoot: string): Promise<CommandConfig | null> {
   const configPath = join(repoRoot, REPO_COMMANDS_CONFIG);
   try {
-    const raw = readFileSync(configPath, "utf8");
+    const raw = await readFile(configPath, "utf8");
     return JSON.parse(raw) as CommandConfig;
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
       process.stderr.write(`[warn] Failed to parse ${configPath}: ${String(e)}\n`);
+      return null;
     }
-    return null;
+    // .grove/commands.json not found — check for legacy .dotclaude/commands.json
+    const legacyPath = join(repoRoot, ".dotclaude", "commands.json");
+    let legacyRaw: string;
+    try {
+      legacyRaw = await readFile(legacyPath, "utf8");
+    } catch {
+      return null;
+    }
+    try {
+      const config = JSON.parse(legacyRaw) as CommandConfig;
+      process.stderr.write(
+        `[grove] Warning: .dotclaude/commands.json is deprecated. Rename it to .grove/commands.json.\n`,
+      );
+      return config;
+    } catch (e) {
+      process.stderr.write(`[warn] Failed to parse ${legacyPath}: ${String(e)}\n`);
+      return null;
+    }
   }
 }
 
@@ -58,7 +76,7 @@ export function resolveCommand(
       cmd = raw.slice();
     } else {
       process.stderr.write(
-        `[warn] Command "${command}" in .dotclaude/commands.json must be a string or array, got ${typeof raw} — skipping\n`,
+        `[warn] Command "${command}" in .grove/commands.json must be a string or array, got ${typeof raw} — skipping\n`,
       );
     }
   } else if (ecosystem) {

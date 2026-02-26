@@ -5,7 +5,7 @@ export interface Paths {
   repos: string;
   workspace: (name: string) => string;
   workspaceConfig: (name: string) => string;
-  workspaceDotClaude: (name: string) => string;
+  workspaceClaudeDir: (name: string) => string;
   vscodeWorkspace: (name: string) => string;
   repoEntry: (repoName: string) => string;
   repoDir: (workspace: string, repo: string) => string;
@@ -26,7 +26,7 @@ export function createPaths(root: string): Paths {
     repos: join(root, "repos"),
     workspace: (name) => join(root, name),
     workspaceConfig: (name) => join(root, name, "workspace.json"),
-    workspaceDotClaude: (name) => join(root, name, ".claude"),
+    workspaceClaudeDir: (name) => join(root, name, ".claude"),
     vscodeWorkspace: (name) => join(root, name, `${name}.code-workspace`),
     repoEntry: (repoName) => join(root, "repos", repoName),
     repoDir: (workspace, repo) => join(root, workspace, "trees", repo),
@@ -42,7 +42,7 @@ export function createPaths(root: string): Paths {
   };
 }
 
-export const DEFAULT_WORKSPACES_ROOT = join(process.env.HOME ?? "/tmp", "dotclaude-workspaces");
+export const DEFAULT_WORKSPACES_ROOT = join(process.env.HOME ?? "/tmp", "grove-workspaces");
 
 /** Path to per-repo command overrides, relative to the repo root. */
-export const REPO_COMMANDS_CONFIG = join(".dotclaude", "commands.json");
+export const REPO_COMMANDS_CONFIG = join(".grove", "commands.json");

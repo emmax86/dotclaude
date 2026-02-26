@@ -70,7 +70,7 @@ export async function execCommand(
   if (!cmd) {
     const detail = config
       ? `configured commands: ${Object.keys(config).join(", ") || "none"}`
-      : `no .dotclaude/commands.json and no ecosystem signal detected`;
+      : `no .grove/commands.json and no ecosystem signal detected`;
     return err(
       `Command "${command}" is not configured for repo "${repo}". ${detail}`,
       "COMMAND_NOT_CONFIGURED",

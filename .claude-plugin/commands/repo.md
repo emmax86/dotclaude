@@ -5,9 +5,9 @@ Manage repos registered in a workspace. A repo links an existing git repository 
 ## Usage
 
 ```
-dotclaude ws repo add [workspace] <path> [--name <name>]
-dotclaude ws repo list [workspace] [--porcelain]
-dotclaude ws repo remove [workspace] <name> [--force]
+grove ws repo add [workspace] <path> [--name <name>]
+grove ws repo list [workspace] [--porcelain]
+grove ws repo remove [workspace] <name> [--force]
 ```
 
 ## Subcommands
@@ -19,9 +19,9 @@ Register a git repository in a workspace. The repo name defaults to the director
 - `--name <name>` overrides the derived name
 
 ```
-dotclaude ws repo add myproject /path/to/myapp
-dotclaude ws repo add myproject /path/to/myapp --name customname
-dotclaude ws repo add /path/to/myapp          # workspace from context
+grove ws repo add myproject /path/to/myapp
+grove ws repo add myproject /path/to/myapp --name customname
+grove ws repo add /path/to/myapp          # workspace from context
 ```
 
 Creates:
@@ -35,8 +35,8 @@ Creates:
 List repos registered in a workspace.
 
 ```
-dotclaude ws repo list myproject
-dotclaude ws repo list myproject --porcelain
+grove ws repo list myproject
+grove ws repo list myproject --porcelain
 ```
 
 Porcelain output: `name\tpath\tstatus` (status is `ok` or `dangling`).
@@ -46,8 +46,8 @@ Porcelain output: `name\tpath\tstatus` (status is `ok` or `dangling`).
 Remove a repo from a workspace. Fails if worktrees exist unless `--force` is passed.
 
 ```
-dotclaude ws repo remove myproject myapp
-dotclaude ws repo remove myproject myapp --force
+grove ws repo remove myproject myapp
+grove ws repo remove myproject myapp --force
 ```
 
 The global `repos/{name}` symlink is preserved (other workspaces may still use it).

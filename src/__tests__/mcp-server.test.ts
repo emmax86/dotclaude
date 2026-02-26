@@ -59,10 +59,10 @@ describe("MCP server", () => {
       const { resources } = await client.listResources();
       const uris = resources.map((r) => r.uri);
 
-      expect(uris).toContain("dotclaude://workspace/status");
-      expect(uris).toContain("dotclaude://workspace/repos");
-      expect(uris).toContain("dotclaude://workspace/worktrees");
-      expect(uris).toContain("dotclaude://workspace/context");
+      expect(uris).toContain("grove://workspace/status");
+      expect(uris).toContain("grove://workspace/repos");
+      expect(uris).toContain("grove://workspace/worktrees");
+      expect(uris).toContain("grove://workspace/context");
 
       await client.close();
       await server.close();
@@ -72,7 +72,7 @@ describe("MCP server", () => {
       await setupWorkspaceWithRepo();
       const { client, server } = await connectClient("ws");
 
-      const result = await client.readResource({ uri: "dotclaude://workspace/status" });
+      const result = await client.readResource({ uri: "grove://workspace/status" });
       expect(result.contents).toHaveLength(1);
       const text = (result.contents[0] as { uri: string; text: string }).text;
       const data = JSON.parse(text);
@@ -89,7 +89,7 @@ describe("MCP server", () => {
       await setupWorkspaceWithRepo();
       const { client, server } = await connectClient("ws");
 
-      const result = await client.readResource({ uri: "dotclaude://workspace/repos" });
+      const result = await client.readResource({ uri: "grove://workspace/repos" });
       const text = (result.contents[0] as { uri: string; text: string }).text;
       const data = JSON.parse(text);
 
@@ -105,7 +105,7 @@ describe("MCP server", () => {
       await addWorkspace("ws", paths);
       const { client, server } = await connectClient("ws");
 
-      const result = await client.readResource({ uri: "dotclaude://workspace/repos" });
+      const result = await client.readResource({ uri: "grove://workspace/repos" });
       const text = (result.contents[0] as { uri: string; text: string }).text;
       const data = JSON.parse(text);
 
@@ -119,7 +119,7 @@ describe("MCP server", () => {
       await setupWorkspaceWithRepo();
       const { client, server } = await connectClient("ws");
 
-      const result = await client.readResource({ uri: "dotclaude://workspace/worktrees" });
+      const result = await client.readResource({ uri: "grove://workspace/worktrees" });
       const text = (result.contents[0] as { uri: string; text: string }).text;
       const data = JSON.parse(text);
 
@@ -133,7 +133,7 @@ describe("MCP server", () => {
       await setupWorkspaceWithRepo();
       const { client, server } = await connectClient("ws");
 
-      const result = await client.readResource({ uri: "dotclaude://workspace/context" });
+      const result = await client.readResource({ uri: "grove://workspace/context" });
       const text = (result.contents[0] as { uri: string; text: string }).text;
       const data = JSON.parse(text);
 

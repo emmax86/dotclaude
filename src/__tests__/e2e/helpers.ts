@@ -13,12 +13,12 @@ export interface RunResult {
 
 export function runCLI(
   args: string[],
-  options: { cwd?: string; root?: string; pwd?: string } = {},
+  options: { cwd?: string; root?: string; pwd?: string; env?: Record<string, string> } = {},
 ): RunResult {
   const env: Record<string, string> = {
     PATH: process.env.PATH ?? "",
     HOME: process.env.HOME ?? "",
-    DOTCLAUDE_ROOT: options.root ?? "",
+    GROVE_ROOT: options.root ?? "",
     // PWD lets context inference use the logical (symlink-preserving) path.
     // Falls back to cwd if not explicitly overridden.
     PWD: options.pwd ?? options.cwd ?? "",
@@ -27,6 +27,7 @@ export function runCLI(
     GIT_AUTHOR_EMAIL: "test@test.com",
     GIT_COMMITTER_NAME: "Test",
     GIT_COMMITTER_EMAIL: "test@test.com",
+    ...options.env,
   };
 
   const result = Bun.spawnSync(["bun", "run", CLI, ...args], {
@@ -49,7 +50,7 @@ export function runCLI(
 }
 
 export function createTempRoot(): string {
-  return realpathSync(mkdtempSync(join(tmpdir(), "dotclaude-e2e-")));
+  return realpathSync(mkdtempSync(join(tmpdir(), "grove-e2e-")));
 }
 
 export function cleanupTempRoot(dir: string): void {

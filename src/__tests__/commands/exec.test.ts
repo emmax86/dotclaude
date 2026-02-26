@@ -63,9 +63,9 @@ describe("execCommand", () => {
 
   it("dry-run with file substitution resolves {file} placeholder", async () => {
     // Write a commands.json with test:file command
-    mkdirSync(join(repoPath, ".dotclaude"), { recursive: true });
+    mkdirSync(join(repoPath, ".grove"), { recursive: true });
     writeFileSync(
-      join(repoPath, ".dotclaude", "commands.json"),
+      join(repoPath, ".grove", "commands.json"),
       JSON.stringify({ "test:file": ["bun", "test", "{file}"] }),
     );
     const filePath = join(repoPath, "src", "foo.test.ts");
@@ -82,9 +82,9 @@ describe("execCommand", () => {
   });
 
   it("executes a real command and captures stdout", async () => {
-    mkdirSync(join(repoPath, ".dotclaude"), { recursive: true });
+    mkdirSync(join(repoPath, ".grove"), { recursive: true });
     writeFileSync(
-      join(repoPath, ".dotclaude", "commands.json"),
+      join(repoPath, ".grove", "commands.json"),
       JSON.stringify({ setup: ["echo", "hello-grove"] }),
     );
     const result = await execCommand("ws", "setup", { repo: "myrepo" }, paths);
@@ -97,11 +97,8 @@ describe("execCommand", () => {
   });
 
   it("returns ok with non-zero exitCode when command fails", async () => {
-    mkdirSync(join(repoPath, ".dotclaude"), { recursive: true });
-    writeFileSync(
-      join(repoPath, ".dotclaude", "commands.json"),
-      JSON.stringify({ check: ["false"] }),
-    );
+    mkdirSync(join(repoPath, ".grove"), { recursive: true });
+    writeFileSync(join(repoPath, ".grove", "commands.json"), JSON.stringify({ check: ["false"] }));
     const result = await execCommand("ws", "check", { repo: "myrepo" }, paths);
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -110,9 +107,9 @@ describe("execCommand", () => {
   });
 
   it("resolves relative file path to absolute before command substitution", async () => {
-    mkdirSync(join(repoPath, ".dotclaude"), { recursive: true });
+    mkdirSync(join(repoPath, ".grove"), { recursive: true });
     writeFileSync(
-      join(repoPath, ".dotclaude", "commands.json"),
+      join(repoPath, ".grove", "commands.json"),
       JSON.stringify({ "test:file": ["bun", "test", "{file}"] }),
     );
     const absoluteFile = join(repoPath, "README.md");

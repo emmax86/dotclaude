@@ -87,16 +87,42 @@ function flagValue(parsed: ParsedArgs, name: string): string | undefined {
   return typeof v === "string" ? v : undefined;
 }
 
+// ---- Deprecation helpers ----
+
+function warnDeprecatedEnv(oldVar: string, newVar: string): void {
+  const val = process.env[oldVar];
+  if (!process.env[newVar] && val) {
+    const safeVal = JSON.stringify(String(val));
+    process.stderr.write(
+      `[grove] Warning: ${oldVar}=${safeVal} is deprecated. Rename it to ${newVar}=${safeVal}.\n`,
+    );
+  }
+}
+
+function resolveWorkspace(
+  parsed: ParsedArgs,
+  ctxWorkspace: string | undefined,
+): string | undefined {
+  warnDeprecatedEnv("DOTCLAUDE_WORKSPACE", "GROVE_WORKSPACE");
+  return (
+    flagValue(parsed, "workspace") ||
+    process.env.GROVE_WORKSPACE ||
+    process.env.DOTCLAUDE_WORKSPACE ||
+    ctxWorkspace
+  );
+}
+
 // ---- Main ----
 
 async function main() {
   const argv = process.argv.slice(2);
   if (argv.length === 0) {
-    console.error("Usage: dotclaude <ws|workspaces> <subcommand> [args...]");
+    console.error("Usage: grove <ws|workspaces> <subcommand> [args...]");
     process.exit(1);
   }
 
-  const root = process.env.DOTCLAUDE_ROOT ?? DEFAULT_WORKSPACES_ROOT;
+  const root = process.env.GROVE_ROOT || process.env.DOTCLAUDE_ROOT || DEFAULT_WORKSPACES_ROOT;
+  warnDeprecatedEnv("DOTCLAUDE_ROOT", "GROVE_ROOT");
   const paths = createPaths(root);
   const ctx = await inferContext(process.env.PWD ?? process.cwd(), root);
 
@@ -106,8 +132,7 @@ async function main() {
   // ── mcp-server subcommand ────────────────────────────────────────
   if (cmd === "mcp-server") {
     const parsed = parseArgs(argv.slice(1));
-    const workspaceName =
-      flagValue(parsed, "workspace") ?? process.env.DOTCLAUDE_WORKSPACE ?? ctx.workspace;
+    const workspaceName = resolveWorkspace(parsed, ctx.workspace);
     const portArg = flagValue(parsed, "port");
     const port = portArg !== undefined ? parseInt(portArg, 10) : 0;
     if (portArg !== undefined && (isNaN(port) || port < 0 || port > 65535)) {
@@ -117,8 +142,8 @@ async function main() {
 
     if (!workspaceName) {
       console.error(
-        "Usage: dotclaude mcp-server [--workspace <name>] [--port <port>]\n" +
-          "  Workspace must be specified via --workspace, DOTCLAUDE_WORKSPACE env, or inferred from cwd.",
+        "Usage: grove mcp-server [--workspace <name>] [--port <port>]\n" +
+          "  Workspace must be specified via --workspace, GROVE_WORKSPACE env, or inferred from cwd.",
       );
       process.exit(1);
     }
@@ -141,18 +166,17 @@ async function main() {
   // ── ws exec subcommand ───────────────────────────────────────────
   if (cmd === "ws" && argv[1] === "exec") {
     const parsed = parseArgs(argv.slice(2));
-    const workspaceName =
-      flagValue(parsed, "workspace") ?? process.env.DOTCLAUDE_WORKSPACE ?? ctx.workspace;
+    const workspaceName = resolveWorkspace(parsed, ctx.workspace);
     const command = parsed.positional[0] as StandardCommand | undefined;
 
     if (!workspaceName) {
       console.error(
-        "Usage: dotclaude ws exec <command> [file] [--match <pattern>] [--repo <name>] [--dry-run]",
+        "Usage: grove ws exec <command> [file] [--match <pattern>] [--repo <name>] [--dry-run]",
       );
       process.exit(1);
     }
     if (!command) {
-      console.error("Usage: dotclaude ws exec <setup|format|test|check|test:file|test:match>");
+      console.error("Usage: grove ws exec <setup|format|test|check|test:file|test:match>");
       process.exit(1);
     }
 
@@ -193,7 +217,7 @@ async function main() {
 
   const subcmd = argv[1];
   if (!subcmd) {
-    console.error("Usage: dotclaude ws <add|list|remove|repo|worktree|status|path|sync>");
+    console.error("Usage: grove ws <add|list|remove|repo|worktree|status|path|sync>");
     process.exit(1);
   }
 
@@ -205,7 +229,7 @@ async function main() {
     case "add": {
       const name = parsed.positional[0];
       if (!name) {
-        console.error("Usage: dotclaude ws add <name>");
+        console.error("Usage: grove ws add <name>");
         process.exit(1);
       }
       output(await addWorkspace(name, paths), porcelain);
@@ -220,7 +244,7 @@ async function main() {
     case "remove": {
       const name = parsed.positional[0] ?? ctx.workspace;
       if (!name) {
-        console.error("Usage: dotclaude ws remove <name>");
+        console.error("Usage: grove ws remove <name>");
         process.exit(1);
       }
       output(await removeWorkspace(name, { force: flag(parsed, "force") }, paths), porcelain);
@@ -244,7 +268,7 @@ async function main() {
             repoPath = repoArgs[0];
           }
           if (!workspace || !repoPath) {
-            console.error("Usage: dotclaude ws repo add [workspace] <path> [--name override]");
+            console.error("Usage: grove ws repo add [workspace] <path> [--name override]");
             process.exit(1);
           }
           output(await addRepo(workspace, repoPath, flagValue(parsed, "name"), paths), porcelain);
@@ -254,7 +278,7 @@ async function main() {
         case "list": {
           const workspace = repoArgs[0] ?? ctx.workspace;
           if (!workspace) {
-            console.error("Usage: dotclaude ws repo list [workspace]");
+            console.error("Usage: grove ws repo list [workspace]");
             process.exit(1);
           }
           output(await listRepos(workspace, paths), porcelain, formatRepoList);
@@ -272,7 +296,7 @@ async function main() {
             repoName = repoArgs[0];
           }
           if (!workspace || !repoName) {
-            console.error("Usage: dotclaude ws repo remove [workspace] <name>");
+            console.error("Usage: grove ws repo remove [workspace] <name>");
             process.exit(1);
           }
           output(
@@ -307,7 +331,7 @@ async function main() {
           }
           const workspace = ctx.workspace ?? "";
           if (!workspace || !repo || !branch) {
-            console.error("Usage: dotclaude ws worktree add [repo] <branch> [--from base] [--new]");
+            console.error("Usage: grove ws worktree add [repo] <branch> [--from base] [--new]");
             process.exit(1);
           }
           output(
@@ -331,7 +355,7 @@ async function main() {
           const workspace = ctx.workspace ?? "";
           const repo = wtArgs[0] ?? ctx.repo;
           if (!workspace || !repo) {
-            console.error("Usage: dotclaude ws worktree list [repo]");
+            console.error("Usage: grove ws worktree list [repo]");
             process.exit(1);
           }
           output(await listWorktrees(workspace, repo, paths), porcelain, formatWorktreeList);
@@ -350,7 +374,7 @@ async function main() {
             slug = wtArgs[0];
           }
           if (!workspace || !repo || !slug) {
-            console.error("Usage: dotclaude ws worktree remove [repo] <slug> [--force]");
+            console.error("Usage: grove ws worktree remove [repo] <slug> [--force]");
             process.exit(1);
           }
           output(
@@ -363,7 +387,7 @@ async function main() {
         case "prune": {
           const workspace = ctx.workspace ?? "";
           if (!workspace) {
-            console.error("Usage: dotclaude ws worktree prune");
+            console.error("Usage: grove ws worktree prune");
             process.exit(1);
           }
           output(await pruneWorktrees(workspace, paths), porcelain);
@@ -380,7 +404,7 @@ async function main() {
     case "status": {
       const workspace = parsed.positional[0] ?? ctx.workspace;
       if (!workspace) {
-        console.error("Usage: dotclaude ws status [workspace]");
+        console.error("Usage: grove ws status [workspace]");
         process.exit(1);
       }
       output(await getStatus(workspace, paths), porcelain);
@@ -390,7 +414,7 @@ async function main() {
     case "sync": {
       const workspace = parsed.positional[0] ?? ctx.workspace;
       if (!workspace) {
-        console.error("Usage: dotclaude ws sync [workspace]");
+        console.error("Usage: grove ws sync [workspace]");
         process.exit(1);
       }
       output(await syncWorkspace(workspace, paths), porcelain);
@@ -400,7 +424,7 @@ async function main() {
     case "path": {
       const workspace = parsed.positional[0] ?? ctx.workspace;
       if (!workspace) {
-        console.error("Usage: dotclaude ws path [workspace]");
+        console.error("Usage: grove ws path [workspace]");
         process.exit(1);
       }
       output(ok({ path: paths.workspace(workspace) }), porcelain, (val) => {

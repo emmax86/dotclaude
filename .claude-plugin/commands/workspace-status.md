@@ -5,7 +5,7 @@ Show a status overview for the current (or named) workspace, listing all repos a
 ## Usage
 
 ```
-dotclaude ws status [workspace]
+grove ws status [workspace]
 ```
 
 The workspace is inferred from `$PWD` when not specified.
@@ -25,7 +25,7 @@ JSON output includes:
 ## Example
 
 ```
-dotclaude ws status myproject
+grove ws status myproject
 ```
 
 Returns JSON like:
