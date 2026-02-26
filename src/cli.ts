@@ -224,6 +224,7 @@ async function main() {
   // Parse everything after the subcommand
   const parsed = parseArgs(argv.slice(2));
   const porcelain = flag(parsed, "porcelain");
+  const effectiveWorkspace = resolveWorkspace(parsed, ctx.workspace);
 
   switch (subcmd) {
     case "add": {
@@ -242,7 +243,7 @@ async function main() {
     }
 
     case "remove": {
-      const name = parsed.positional[0] ?? ctx.workspace;
+      const name = parsed.positional[0] ?? effectiveWorkspace;
       if (!name) {
         console.error("Usage: grove ws remove <name>");
         process.exit(1);
@@ -264,7 +265,7 @@ async function main() {
             workspace = repoArgs[0];
             repoPath = repoArgs[1];
           } else {
-            workspace = ctx.workspace ?? "";
+            workspace = effectiveWorkspace ?? "";
             repoPath = repoArgs[0];
           }
           if (!workspace || !repoPath) {
@@ -276,7 +277,7 @@ async function main() {
         }
 
         case "list": {
-          const workspace = repoArgs[0] ?? ctx.workspace;
+          const workspace = repoArgs[0] ?? effectiveWorkspace;
           if (!workspace) {
             console.error("Usage: grove ws repo list [workspace]");
             process.exit(1);
@@ -292,7 +293,7 @@ async function main() {
             workspace = repoArgs[0];
             repoName = repoArgs[1];
           } else {
-            workspace = ctx.workspace ?? "";
+            workspace = effectiveWorkspace ?? "";
             repoName = repoArgs[0];
           }
           if (!workspace || !repoName) {
@@ -329,7 +330,7 @@ async function main() {
             repo = ctx.repo ?? "";
             branch = wtArgs[0];
           }
-          const workspace = ctx.workspace ?? "";
+          const workspace = effectiveWorkspace ?? "";
           if (!workspace || !repo || !branch) {
             console.error("Usage: grove ws worktree add [repo] <branch> [--from base] [--new]");
             process.exit(1);
@@ -352,7 +353,7 @@ async function main() {
         }
 
         case "list": {
-          const workspace = ctx.workspace ?? "";
+          const workspace = effectiveWorkspace ?? "";
           const repo = wtArgs[0] ?? ctx.repo;
           if (!workspace || !repo) {
             console.error("Usage: grove ws worktree list [repo]");
@@ -363,7 +364,7 @@ async function main() {
         }
 
         case "remove": {
-          const workspace = ctx.workspace ?? "";
+          const workspace = effectiveWorkspace ?? "";
           let repo: string;
           let slug: string;
           if (wtArgs.length >= 2) {
@@ -385,7 +386,7 @@ async function main() {
         }
 
         case "prune": {
-          const workspace = ctx.workspace ?? "";
+          const workspace = effectiveWorkspace ?? "";
           if (!workspace) {
             console.error("Usage: grove ws worktree prune");
             process.exit(1);
@@ -402,7 +403,7 @@ async function main() {
     }
 
     case "status": {
-      const workspace = parsed.positional[0] ?? ctx.workspace;
+      const workspace = parsed.positional[0] ?? effectiveWorkspace;
       if (!workspace) {
         console.error("Usage: grove ws status [workspace]");
         process.exit(1);
@@ -412,7 +413,7 @@ async function main() {
     }
 
     case "sync": {
-      const workspace = parsed.positional[0] ?? ctx.workspace;
+      const workspace = parsed.positional[0] ?? effectiveWorkspace;
       if (!workspace) {
         console.error("Usage: grove ws sync [workspace]");
         process.exit(1);
@@ -422,7 +423,7 @@ async function main() {
     }
 
     case "path": {
-      const workspace = parsed.positional[0] ?? ctx.workspace;
+      const workspace = parsed.positional[0] ?? effectiveWorkspace;
       if (!workspace) {
         console.error("Usage: grove ws path [workspace]");
         process.exit(1);
