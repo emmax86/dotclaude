@@ -36,13 +36,20 @@ export async function loadCommandConfig(repoRoot: string): Promise<CommandConfig
     }
     // .grove/commands.json not found — check for legacy .dotclaude/commands.json
     const legacyPath = join(repoRoot, ".dotclaude", "commands.json");
+    let legacyRaw: string;
     try {
-      const raw = readFileSync(legacyPath, "utf8");
+      legacyRaw = readFileSync(legacyPath, "utf8");
+    } catch {
+      return null;
+    }
+    try {
+      const config = JSON.parse(legacyRaw) as CommandConfig;
       process.stderr.write(
         `[grove] Warning: .dotclaude/commands.json is deprecated. Rename it to .grove/commands.json.\n`,
       );
-      return JSON.parse(raw) as CommandConfig;
-    } catch {
+      return config;
+    } catch (e) {
+      process.stderr.write(`[warn] Failed to parse ${legacyPath}: ${String(e)}\n`);
       return null;
     }
   }

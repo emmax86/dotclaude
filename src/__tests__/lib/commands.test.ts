@@ -71,6 +71,27 @@ describe("loadCommandConfig", () => {
     expect(messages.some((m) => m.includes(".dotclaude/commands.json is deprecated"))).toBe(true);
   });
 
+  it("emits parse warning and returns null when .dotclaude/commands.json exists but is invalid JSON", async () => {
+    mkdirSync(join(tempDir, ".dotclaude"));
+    writeFileSync(join(tempDir, ".dotclaude", "commands.json"), "not json");
+    const messages: string[] = [];
+    const origWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = (msg: string | Uint8Array) => {
+      messages.push(String(msg));
+      return true;
+    };
+    let result: unknown;
+    try {
+      result = await loadCommandConfig(tempDir);
+    } finally {
+      process.stderr.write = origWrite;
+    }
+    expect(result).toBeNull();
+    expect(messages.some((m) => m.includes("Failed to parse") && m.includes(".dotclaude"))).toBe(
+      true,
+    );
+  });
+
   it("returns null when neither .grove nor .dotclaude commands.json exists", async () => {
     const result = await loadCommandConfig(tempDir);
     expect(result).toBeNull();
