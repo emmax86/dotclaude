@@ -653,7 +653,10 @@ describe("E2E: GROVE_WORKSPACE plumbed to all ws subcommands", () => {
     "%s resolves workspace from GROVE_WORKSPACE (fails for non-workspace reason)",
     (_, args) => {
       const r = runCLI(args, { root, env: { GROVE_WORKSPACE: "myws" } });
-      expect(r.json?.code).not.toBe("WORKSPACE_NOT_FOUND");
+      if (r.exitCode !== 0) {
+        const errJson = JSON.parse(r.stderr) as { code?: string };
+        expect(errJson.code).not.toBe("WORKSPACE_NOT_FOUND");
+      }
     },
   );
 });
