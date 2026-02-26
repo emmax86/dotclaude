@@ -601,3 +601,62 @@ describe("E2E: deprecation warnings", () => {
     expect(r.stderr).not.toContain("DOTCLAUDE_WORKSPACE");
   });
 });
+
+describe("E2E: GROVE_WORKSPACE plumbed to all ws subcommands", () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = createTempRoot();
+    runCLI(["ws", "add", "myws"], { root });
+  });
+
+  afterEach(() => {
+    cleanupTempRoot(root);
+  });
+
+  // Subcommands that exit 0 when workspace exists and is empty
+  const cleanCases: [string, string[]][] = [
+    ["ws status", ["ws", "status"]],
+    ["ws sync", ["ws", "sync"]],
+    ["ws path", ["ws", "path"]],
+    ["ws remove", ["ws", "remove"]],
+    ["ws repo list", ["ws", "repo", "list"]],
+    ["ws worktree prune", ["ws", "worktree", "prune"]],
+  ];
+
+  it.each(cleanCases)("%s exits 0 when workspace comes from GROVE_WORKSPACE", (_, args) => {
+    const r = runCLI(args, { root, env: { GROVE_WORKSPACE: "myws" } });
+    expect(r.exitCode).toBe(0);
+  });
+
+  it.each(cleanCases)(
+    "%s exits 0 and emits deprecation warning when workspace comes from DOTCLAUDE_WORKSPACE",
+    (_, args) => {
+      const r = runCLI(args, { root, env: { DOTCLAUDE_WORKSPACE: "myws" } });
+      expect(r.exitCode).toBe(0);
+      expect(r.stderr).toContain("DOTCLAUDE_WORKSPACE");
+      expect(r.stderr).toContain("is deprecated");
+    },
+  );
+
+  // Subcommands that need a repo/worktree arg: workspace resolves from env,
+  // failure is for a different reason (not WORKSPACE_NOT_FOUND)
+  const repoArgCases: [string, string[]][] = [
+    ["ws repo add", ["ws", "repo", "add", "/nonexistent"]],
+    ["ws repo remove", ["ws", "repo", "remove", "gone"]],
+    ["ws worktree add", ["ws", "worktree", "add", "gone", "branch", "--new"]],
+    ["ws worktree list", ["ws", "worktree", "list", "gone"]],
+    ["ws worktree remove", ["ws", "worktree", "remove", "gone", "slug"]],
+  ];
+
+  it.each(repoArgCases)(
+    "%s resolves workspace from GROVE_WORKSPACE (fails for non-workspace reason)",
+    (_, args) => {
+      const r = runCLI(args, { root, env: { GROVE_WORKSPACE: "myws" } });
+      if (r.exitCode !== 0) {
+        const errJson = JSON.parse(r.stderr) as { code?: string };
+        expect(errJson.code).not.toBe("WORKSPACE_NOT_FOUND");
+      }
+    },
+  );
+});
