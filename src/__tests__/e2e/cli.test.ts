@@ -536,3 +536,46 @@ describe("E2E: ws status", () => {
     expect(worktrees.map((w) => w.slug)).toContain("feature-s");
   });
 });
+
+describe("E2E: deprecation warnings", () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = createTempRoot();
+  });
+
+  afterEach(() => {
+    cleanupTempRoot(root);
+  });
+
+  it("warns on stderr when DOTCLAUDE_ROOT is set and GROVE_ROOT is not", () => {
+    const r = runCLI(["ws", "list"], { env: { DOTCLAUDE_ROOT: root } });
+    expect(r.stderr).toContain(
+      "[grove] Warning: DOTCLAUDE_ROOT is set but ignored. Use GROVE_ROOT instead.",
+    );
+  });
+
+  it("does not warn when GROVE_ROOT is set (even if DOTCLAUDE_ROOT is also set)", () => {
+    const r = runCLI(["ws", "list"], { root, env: { DOTCLAUDE_ROOT: root } });
+    expect(r.stderr).not.toContain("DOTCLAUDE_ROOT");
+  });
+
+  it("warns on stderr when DOTCLAUDE_WORKSPACE is set and GROVE_WORKSPACE is not (ws exec path)", () => {
+    // ws exec fails (no repo), but the warning still fires before the error
+    const r = runCLI(["ws", "exec", "test"], {
+      root,
+      env: { DOTCLAUDE_WORKSPACE: "myws" },
+    });
+    expect(r.stderr).toContain(
+      "[grove] Warning: DOTCLAUDE_WORKSPACE is set but ignored. Use GROVE_WORKSPACE instead.",
+    );
+  });
+
+  it("does not warn when GROVE_WORKSPACE is set (ws exec path)", () => {
+    const r = runCLI(["ws", "exec", "test"], {
+      root,
+      env: { GROVE_WORKSPACE: "myws" },
+    });
+    expect(r.stderr).not.toContain("DOTCLAUDE_WORKSPACE");
+  });
+});

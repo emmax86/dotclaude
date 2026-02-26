@@ -13,7 +13,7 @@ export interface RunResult {
 
 export function runCLI(
   args: string[],
-  options: { cwd?: string; root?: string; pwd?: string } = {},
+  options: { cwd?: string; root?: string; pwd?: string; env?: Record<string, string> } = {},
 ): RunResult {
   const env: Record<string, string> = {
     PATH: process.env.PATH ?? "",
@@ -27,6 +27,7 @@ export function runCLI(
     GIT_AUTHOR_EMAIL: "test@test.com",
     GIT_COMMITTER_NAME: "Test",
     GIT_COMMITTER_EMAIL: "test@test.com",
+    ...options.env,
   };
 
   const result = Bun.spawnSync(["bun", "run", CLI, ...args], {
