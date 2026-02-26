@@ -93,7 +93,7 @@ function warnDeprecatedEnv(oldVar: string, newVar: string): void {
   const val = process.env[oldVar];
   if (!process.env[newVar] && val) {
     process.stderr.write(
-      `[grove] Warning: ${oldVar}=${val} is set but ignored. Set ${newVar}=${val} instead.\n`,
+      `[grove] Warning: ${oldVar}=${val} is deprecated. Rename it to ${newVar}=${val}.\n`,
     );
   }
 }

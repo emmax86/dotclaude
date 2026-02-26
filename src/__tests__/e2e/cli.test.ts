@@ -550,7 +550,9 @@ describe("E2E: deprecation warnings", () => {
 
   it("warns with value when DOTCLAUDE_ROOT is set and GROVE_ROOT is not", () => {
     const r = runCLI(["ws", "list"], { env: { DOTCLAUDE_ROOT: root } });
-    expect(r.stderr).toContain(`DOTCLAUDE_ROOT=${root} is set but ignored. Set GROVE_ROOT=${root}`);
+    expect(r.stderr).toContain(
+      `DOTCLAUDE_ROOT=${root} is deprecated. Rename it to GROVE_ROOT=${root}`,
+    );
   });
 
   it("falls back to DOTCLAUDE_ROOT when GROVE_ROOT is not set", () => {
@@ -575,7 +577,7 @@ describe("E2E: deprecation warnings", () => {
       env: { DOTCLAUDE_WORKSPACE: "myws" },
     });
     expect(r.stderr).toContain(
-      "DOTCLAUDE_WORKSPACE=myws is set but ignored. Set GROVE_WORKSPACE=myws",
+      "DOTCLAUDE_WORKSPACE=myws is deprecated. Rename it to GROVE_WORKSPACE=myws",
     );
   });
 
@@ -586,7 +588,7 @@ describe("E2E: deprecation warnings", () => {
       env: { DOTCLAUDE_WORKSPACE: "myws" },
     });
     expect(r.stderr).toContain(
-      "DOTCLAUDE_WORKSPACE=myws is set but ignored. Set GROVE_WORKSPACE=myws",
+      "DOTCLAUDE_WORKSPACE=myws is deprecated. Rename it to GROVE_WORKSPACE=myws",
     );
   });
 
