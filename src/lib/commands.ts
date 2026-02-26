@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { REPO_COMMANDS_CONFIG } from "../constants";
 import { type Ecosystem } from "./detect";
@@ -27,7 +27,7 @@ export interface SpawnOptions {
 export async function loadCommandConfig(repoRoot: string): Promise<CommandConfig | null> {
   const configPath = join(repoRoot, REPO_COMMANDS_CONFIG);
   try {
-    const raw = readFileSync(configPath, "utf8");
+    const raw = await readFile(configPath, "utf8");
     return JSON.parse(raw) as CommandConfig;
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
@@ -38,7 +38,7 @@ export async function loadCommandConfig(repoRoot: string): Promise<CommandConfig
     const legacyPath = join(repoRoot, ".dotclaude", "commands.json");
     let legacyRaw: string;
     try {
-      legacyRaw = readFileSync(legacyPath, "utf8");
+      legacyRaw = await readFile(legacyPath, "utf8");
     } catch {
       return null;
     }

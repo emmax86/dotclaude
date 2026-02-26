@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { join } from "node:path";
-import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, symlinkSync, writeFileSync, rmSync } from "node:fs";
+import { mkdir } from "node:fs/promises";
 import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "../helpers";
 import { createPaths } from "../../constants";
 import { writeConfig } from "../../lib/config";
@@ -21,8 +22,8 @@ describe("generateClaudeFiles", () => {
 
   /** Create workspace dir, .claude dir, and workspace.json */
   async function setupWorkspace(ws: string, repos: { name: string; path: string }[] = []) {
-    mkdirSync(paths.workspace(ws), { recursive: true });
-    mkdirSync(paths.workspaceClaudeDir(ws), { recursive: true });
+    await mkdir(paths.workspace(ws), { recursive: true });
+    await mkdir(paths.workspaceClaudeDir(ws), { recursive: true });
     await writeConfig(paths.workspaceConfig(ws), { name: ws, repos });
   }
 
@@ -40,7 +41,7 @@ describe("generateClaudeFiles", () => {
 
     // Create trees/{repo}/ dir and symlink trees/{repo}/{slug} -> repo
     const repoDir = paths.repoDir(ws, name);
-    mkdirSync(repoDir, { recursive: true });
+    await mkdir(repoDir, { recursive: true });
     const slug = defaultBranch.replaceAll("/", "-");
     symlinkSync(repoPath, paths.worktreeDir(ws, name, slug));
 
@@ -284,7 +285,7 @@ describe("generateClaudeFiles", () => {
 
       // Create a repo with detached HEAD using the .git/HEAD write pattern
       const detachedPath = join(tempDir, "bravo");
-      mkdirSync(detachedPath, { recursive: true });
+      await mkdir(detachedPath, { recursive: true });
       const gitEnv = {
         ...process.env,
         ...GIT_ENV,
@@ -307,7 +308,7 @@ describe("generateClaudeFiles", () => {
       writeFileSync(join(detachedPath, "CLAUDE.md"), "# bravo\n");
 
       // Set up tree dir but no slug symlink (can't determine branch)
-      mkdirSync(paths.repoDir("ws", "bravo"), { recursive: true });
+      await mkdir(paths.repoDir("ws", "bravo"), { recursive: true });
 
       await setupWorkspace("ws", [
         { name: "alpha", path: pathA },
