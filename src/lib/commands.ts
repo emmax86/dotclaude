@@ -32,8 +32,19 @@ export async function loadCommandConfig(repoRoot: string): Promise<CommandConfig
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
       process.stderr.write(`[warn] Failed to parse ${configPath}: ${String(e)}\n`);
+      return null;
     }
-    return null;
+    // .grove/commands.json not found — check for legacy .dotclaude/commands.json
+    const legacyPath = join(repoRoot, ".dotclaude", "commands.json");
+    try {
+      const raw = readFileSync(legacyPath, "utf8");
+      process.stderr.write(
+        `[grove] Warning: .dotclaude/commands.json is deprecated. Rename it to .grove/commands.json.\n`,
+      );
+      return JSON.parse(raw) as CommandConfig;
+    } catch {
+      return null;
+    }
   }
 }
 

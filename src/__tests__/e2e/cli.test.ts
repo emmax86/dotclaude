@@ -548,11 +548,19 @@ describe("E2E: deprecation warnings", () => {
     cleanupTempRoot(root);
   });
 
-  it("warns on stderr when DOTCLAUDE_ROOT is set and GROVE_ROOT is not", () => {
+  it("warns with value when DOTCLAUDE_ROOT is set and GROVE_ROOT is not", () => {
     const r = runCLI(["ws", "list"], { env: { DOTCLAUDE_ROOT: root } });
-    expect(r.stderr).toContain(
-      "[grove] Warning: DOTCLAUDE_ROOT is set but ignored. Use GROVE_ROOT instead.",
-    );
+    expect(r.stderr).toContain(`DOTCLAUDE_ROOT=${root} is set but ignored. Set GROVE_ROOT=${root}`);
+  });
+
+  it("falls back to DOTCLAUDE_ROOT when GROVE_ROOT is not set", () => {
+    // Create a workspace using root as the grove root
+    runCLI(["ws", "add", "myws"], { root });
+    // Now use DOTCLAUDE_ROOT without GROVE_ROOT — should still find the workspace
+    const r = runCLI(["ws", "list"], { env: { DOTCLAUDE_ROOT: root } });
+    expect(r.exitCode).toBe(0);
+    const data = r.json?.data as Array<{ name: string }>;
+    expect(data.map((w) => w.name)).toContain("myws");
   });
 
   it("does not warn when GROVE_ROOT is set (even if DOTCLAUDE_ROOT is also set)", () => {
@@ -560,14 +568,25 @@ describe("E2E: deprecation warnings", () => {
     expect(r.stderr).not.toContain("DOTCLAUDE_ROOT");
   });
 
-  it("warns on stderr when DOTCLAUDE_WORKSPACE is set and GROVE_WORKSPACE is not (ws exec path)", () => {
+  it("warns with value when DOTCLAUDE_WORKSPACE is set and GROVE_WORKSPACE is not (ws exec path)", () => {
     // ws exec fails (no repo), but the warning still fires before the error
     const r = runCLI(["ws", "exec", "test"], {
       root,
       env: { DOTCLAUDE_WORKSPACE: "myws" },
     });
     expect(r.stderr).toContain(
-      "[grove] Warning: DOTCLAUDE_WORKSPACE is set but ignored. Use GROVE_WORKSPACE instead.",
+      "DOTCLAUDE_WORKSPACE=myws is set but ignored. Set GROVE_WORKSPACE=myws",
+    );
+  });
+
+  it("warns with value when DOTCLAUDE_WORKSPACE is set and GROVE_WORKSPACE is not (mcp-server path)", () => {
+    // mcp-server fails fast (workspace not found), but warning fires first
+    const r = runCLI(["mcp-server"], {
+      root,
+      env: { DOTCLAUDE_WORKSPACE: "myws" },
+    });
+    expect(r.stderr).toContain(
+      "DOTCLAUDE_WORKSPACE=myws is set but ignored. Set GROVE_WORKSPACE=myws",
     );
   });
 

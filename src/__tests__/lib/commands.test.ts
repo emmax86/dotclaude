@@ -39,6 +39,42 @@ describe("loadCommandConfig", () => {
     const result = await loadCommandConfig(tempDir);
     expect(result).toBeNull();
   });
+
+  it("falls back to .dotclaude/commands.json when .grove/commands.json does not exist", async () => {
+    mkdirSync(join(tempDir, ".dotclaude"));
+    writeFileSync(
+      join(tempDir, ".dotclaude", "commands.json"),
+      JSON.stringify({ check: ["bun", "run", "typecheck"] }),
+    );
+    const result = await loadCommandConfig(tempDir);
+    expect(result).not.toBeNull();
+    expect(result!.check).toEqual(["bun", "run", "typecheck"]);
+  });
+
+  it("emits deprecation warning when falling back to .dotclaude/commands.json", async () => {
+    mkdirSync(join(tempDir, ".dotclaude"));
+    writeFileSync(
+      join(tempDir, ".dotclaude", "commands.json"),
+      JSON.stringify({ setup: ["bun", "install"] }),
+    );
+    const messages: string[] = [];
+    const origWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = (msg: string | Uint8Array) => {
+      messages.push(String(msg));
+      return true;
+    };
+    try {
+      await loadCommandConfig(tempDir);
+    } finally {
+      process.stderr.write = origWrite;
+    }
+    expect(messages.some((m) => m.includes(".dotclaude/commands.json is deprecated"))).toBe(true);
+  });
+
+  it("returns null when neither .grove nor .dotclaude commands.json exists", async () => {
+    const result = await loadCommandConfig(tempDir);
+    expect(result).toBeNull();
+  });
 });
 
 describe("resolveCommand", () => {

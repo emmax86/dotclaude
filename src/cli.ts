@@ -90,9 +90,25 @@ function flagValue(parsed: ParsedArgs, name: string): string | undefined {
 // ---- Deprecation helpers ----
 
 function warnDeprecatedEnv(oldVar: string, newVar: string): void {
-  if (!process.env[newVar] && process.env[oldVar]) {
-    process.stderr.write(`[grove] Warning: ${oldVar} is set but ignored. Use ${newVar} instead.\n`);
+  const val = process.env[oldVar];
+  if (!process.env[newVar] && val) {
+    process.stderr.write(
+      `[grove] Warning: ${oldVar}=${val} is set but ignored. Set ${newVar}=${val} instead.\n`,
+    );
   }
+}
+
+function resolveWorkspace(
+  parsed: ParsedArgs,
+  ctxWorkspace: string | undefined,
+): string | undefined {
+  warnDeprecatedEnv("DOTCLAUDE_WORKSPACE", "GROVE_WORKSPACE");
+  return (
+    flagValue(parsed, "workspace") ||
+    process.env.GROVE_WORKSPACE ||
+    process.env.DOTCLAUDE_WORKSPACE ||
+    ctxWorkspace
+  );
 }
 
 // ---- Main ----
@@ -104,7 +120,7 @@ async function main() {
     process.exit(1);
   }
 
-  const root = process.env.GROVE_ROOT ?? DEFAULT_WORKSPACES_ROOT;
+  const root = process.env.GROVE_ROOT || process.env.DOTCLAUDE_ROOT || DEFAULT_WORKSPACES_ROOT;
   warnDeprecatedEnv("DOTCLAUDE_ROOT", "GROVE_ROOT");
   const paths = createPaths(root);
   const ctx = await inferContext(process.env.PWD ?? process.cwd(), root);
@@ -115,9 +131,7 @@ async function main() {
   // ── mcp-server subcommand ────────────────────────────────────────
   if (cmd === "mcp-server") {
     const parsed = parseArgs(argv.slice(1));
-    const workspaceName =
-      flagValue(parsed, "workspace") ?? process.env.GROVE_WORKSPACE ?? ctx.workspace;
-    warnDeprecatedEnv("DOTCLAUDE_WORKSPACE", "GROVE_WORKSPACE");
+    const workspaceName = resolveWorkspace(parsed, ctx.workspace);
     const portArg = flagValue(parsed, "port");
     const port = portArg !== undefined ? parseInt(portArg, 10) : 0;
     if (portArg !== undefined && (isNaN(port) || port < 0 || port > 65535)) {
@@ -151,9 +165,7 @@ async function main() {
   // ── ws exec subcommand ───────────────────────────────────────────
   if (cmd === "ws" && argv[1] === "exec") {
     const parsed = parseArgs(argv.slice(2));
-    const workspaceName =
-      flagValue(parsed, "workspace") ?? process.env.GROVE_WORKSPACE ?? ctx.workspace;
-    warnDeprecatedEnv("DOTCLAUDE_WORKSPACE", "GROVE_WORKSPACE");
+    const workspaceName = resolveWorkspace(parsed, ctx.workspace);
     const command = parsed.positional[0] as StandardCommand | undefined;
 
     if (!workspaceName) {
