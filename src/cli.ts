@@ -92,8 +92,9 @@ function flagValue(parsed: ParsedArgs, name: string): string | undefined {
 function warnDeprecatedEnv(oldVar: string, newVar: string): void {
   const val = process.env[oldVar];
   if (!process.env[newVar] && val) {
+    const safeVal = JSON.stringify(String(val));
     process.stderr.write(
-      `[grove] Warning: ${oldVar}=${val} is deprecated. Rename it to ${newVar}=${val}.\n`,
+      `[grove] Warning: ${oldVar}=${safeVal} is deprecated. Rename it to ${newVar}=${safeVal}.\n`,
     );
   }
 }
