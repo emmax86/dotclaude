@@ -20,3 +20,10 @@ grove ws $ARGUMENTS
 - `sync [workspace]` — repair workspace symlinks to match workspace.json
 
 Run the command and report the result. If it fails, show the error message.
+
+## Notes
+
+- Reserved names: `repos` and `worktrees` cannot be used as workspace names
+- Workspace names may not contain `/`, `\`, or `..`
+- Current workspace is inferred by walking up from `$PWD` looking for `workspace.json`
+- `sync` is idempotent — safe to run repeatedly to repair symlinks

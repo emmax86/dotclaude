@@ -19,3 +19,10 @@ grove ws repo $ARGUMENTS
 The `workspace` argument is inferred from `$PWD` when omitted.
 
 Run the command and report the result. If it fails, show the error message.
+
+## Notes
+
+- Reserved name: `trees` cannot be used as a repo name
+- Repo names may not contain `/`, `\`, or `..`
+- `remove` preserves the global `repos/{name}` symlink — other workspaces may still reference it
+- Multiple workspaces can register the same repo; they share the global symlink

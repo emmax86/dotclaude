@@ -20,3 +20,10 @@ grove ws worktree $ARGUMENTS
 The `repo` argument is inferred from `$PWD` when omitted.
 
 Run the command and report the result. If it fails, show the error message.
+
+## Notes
+
+- Branch names are slugified (`/` → `-`) when used as directory names
+- Default-branch worktrees (created by `repo add`) cannot be removed via `worktree remove` — use `repo remove` instead
+- `prune` runs automatically as part of `ws sync`
+- The pool allows multiple workspaces to share the same git worktree
