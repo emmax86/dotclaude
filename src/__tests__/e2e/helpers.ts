@@ -1,4 +1,5 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtemp, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -11,10 +12,15 @@ export interface RunResult {
   json?: Record<string, unknown>;
 }
 
-export function runCLI(
+export async function runCLI(
   args: string[],
-  options: { cwd?: string; root?: string; pwd?: string; env?: Record<string, string> } = {},
-): RunResult {
+  options: {
+    cwd?: string;
+    root?: string;
+    pwd?: string;
+    env?: Record<string, string>;
+  } = {},
+): Promise<RunResult> {
   const env: Record<string, string> = {
     PATH: process.env.PATH ?? "",
     HOME: process.env.HOME ?? "",
@@ -30,14 +36,19 @@ export function runCLI(
     ...options.env,
   };
 
-  const result = Bun.spawnSync(["bun", "run", CLI, ...args], {
+  const proc = Bun.spawn(["bun", "run", CLI, ...args], {
     cwd: options.cwd,
     env,
+    stdout: "pipe",
+    stderr: "pipe",
   });
-
-  const stdout = new TextDecoder().decode(result.stdout).trim();
-  const stderr = new TextDecoder().decode(result.stderr).trim();
-  const exitCode = result.exitCode ?? 0;
+  const [rawStdout, rawStderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+  const stdout = rawStdout.trim();
+  const stderr = rawStderr.trim();
 
   let json: Record<string, unknown> | undefined;
   try {
@@ -49,8 +60,9 @@ export function runCLI(
   return { stdout, stderr, exitCode, json };
 }
 
-export function createTempRoot(): string {
-  return realpathSync(mkdtempSync(join(tmpdir(), "grove-e2e-")));
+export async function createTempRoot(): Promise<string> {
+  const tmp = await mkdtemp(join(tmpdir(), "grove-e2e-"));
+  return realpath(tmp);
 }
 
 export function cleanupTempRoot(dir: string): void {
@@ -62,7 +74,11 @@ export function cleanupTempRoot(dir: string): void {
 }
 
 /** Create a minimal git repo with an initial commit and return its path. */
-export function createGitRepo(parentDir: string, name: string, defaultBranch = "main"): string {
+export async function createGitRepo(
+  parentDir: string,
+  name: string,
+  defaultBranch = "main",
+): Promise<string> {
   const repoPath = join(parentDir, name);
   mkdirSync(repoPath, { recursive: true });
 
@@ -76,19 +92,30 @@ export function createGitRepo(parentDir: string, name: string, defaultBranch = "
     GIT_COMMITTER_EMAIL: "test@test.com",
   };
 
-  const run = (args: string[]) => {
-    const r = Bun.spawnSync(args, { cwd: repoPath, env });
-    if (!r.success) {
-      throw new Error(`git ${args.join(" ")} failed: ${new TextDecoder().decode(r.stderr)}`);
+  const run = async (args: string[]) => {
+    const proc = Bun.spawn(args, {
+      cwd: repoPath,
+      env,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ]);
+    if (exitCode !== 0) {
+      throw new Error(`git ${args.join(" ")} failed: ${stderr}`);
     }
+    return stdout.trim();
   };
 
-  run(["git", "init", "-b", defaultBranch]);
-  run(["git", "config", "user.email", "test@test.com"]);
-  run(["git", "config", "user.name", "Test"]);
+  await run(["git", "init", "-b", defaultBranch]);
+  await run(["git", "config", "user.email", "test@test.com"]);
+  await run(["git", "config", "user.name", "Test"]);
   writeFileSync(join(repoPath, "README.md"), `# ${name}\n`);
-  run(["git", "add", "."]);
-  run(["git", "commit", "-m", "Initial commit"]);
+  await run(["git", "add", "."]);
+  await run(["git", "commit", "-m", "Initial commit"]);
 
   return repoPath;
 }

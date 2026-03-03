@@ -1,10 +1,12 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
+import { mkdtemp, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-export function createTestDir(): string {
-  // realpathSync resolves macOS /var -> /private/var symlink so paths match git output
-  return realpathSync(mkdtempSync(join(tmpdir(), "grove-test-")));
+export async function createTestDir(): Promise<string> {
+  // realpath resolves macOS /var -> /private/var symlink so paths match git output
+  const tmp = await mkdtemp(join(tmpdir(), "grove-test-"));
+  return realpath(tmp);
 }
 
 export async function createTestGitRepo(
@@ -25,23 +27,33 @@ export async function createTestGitRepo(
     GIT_COMMITTER_EMAIL: "test@test.com",
   };
 
-  const run = (args: string[]) => {
-    const result = Bun.spawnSync(args, { cwd: repoPath, env });
-    if (!result.success) {
-      throw new Error(`git ${args.join(" ")} failed: ${new TextDecoder().decode(result.stderr)}`);
+  const run = async (args: string[]) => {
+    const proc = Bun.spawn(args, {
+      cwd: repoPath,
+      env,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ]);
+    if (exitCode !== 0) {
+      throw new Error(`git ${args.join(" ")} failed: ${stderr}`);
     }
-    return new TextDecoder().decode(result.stdout).trim();
+    return stdout.trim();
   };
 
-  run(["git", "init", "-b", defaultBranch]);
-  run(["git", "config", "user.email", "test@test.com"]);
-  run(["git", "config", "user.name", "Test"]);
+  await run(["git", "init", "-b", defaultBranch]);
+  await run(["git", "config", "user.email", "test@test.com"]);
+  await run(["git", "config", "user.name", "Test"]);
 
   // Create initial commit so HEAD is valid
   const readmePath = join(repoPath, "README.md");
   await Bun.write(readmePath, `# ${name}\n`);
-  run(["git", "add", "."]);
-  run(["git", "commit", "-m", "Initial commit"]);
+  await run(["git", "add", "."]);
+  await run(["git", "commit", "-m", "Initial commit"]);
 
   return repoPath;
 }
