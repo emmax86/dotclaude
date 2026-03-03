@@ -32,6 +32,9 @@ jobs:
       - name: Check formatting
         run: bun run format:check
 
+      - name: No sync in production code
+        run: bun run lint:no-sync
+
       - name: Type check
         run: bun run typecheck
 
