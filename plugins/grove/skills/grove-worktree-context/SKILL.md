@@ -18,7 +18,7 @@ If `grove` is not in PATH, the binary is typically at `trees/grove/main/.bin/gro
 
 - `type: "linked"` — the default-branch entry for a repo (created automatically when the repo was registered)
 - `type: "worktree"` — a pooled or legacy git worktree (use `{workspace}/trees/{repo}/{slug}/` to find its path)
-- `status: "dangling"` — the repo symlink is broken; run `grove ws sync` to repair
+- a repo with `status: "dangling"` — the repo symlink is broken; run `grove ws sync` to repair
 
 ## Finding a worktree path
 
