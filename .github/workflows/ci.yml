@@ -30,7 +30,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Check formatting and lint
-        run: bunx --bun biome ci .
+        run: bun run format:ci
 
       - name: No sync in production code
         run: bun run lint:no-sync
