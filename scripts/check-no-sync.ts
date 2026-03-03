@@ -41,7 +41,10 @@ for (const file of files) {
     if (/^\s*(\/\/|\*|\/\*)/.test(line)) {
       continue;
     }
-    const matches = line.match(SYNC_CALL);
+    // Strip inline comments before matching to avoid false positives
+    // e.g. `await fn(); // previously used readFileSync(`
+    const codePart = line.replace(/\/\*.*?\*\//g, "").replace(/\/\/.*$/, "");
+    const matches = codePart.match(SYNC_CALL);
     if (matches) {
       for (const match of matches) {
         console.error(`${relative(ROOT, file)}:${i + 1}: ${match}`);
