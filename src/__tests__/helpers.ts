@@ -60,7 +60,7 @@ export const GIT_ENV = {
   GIT_COMMITTER_EMAIL: "test@test.com",
 };
 
-/** Run a git command. Returns trimmed stdout. Throws on non-zero exit. */
+/** Spawn a process. Returns trimmed stdout. Throws on non-zero exit. */
 export async function spawnProc(
   args: string[],
   cwd: string | undefined,
@@ -85,7 +85,11 @@ export async function spawnProc(
 export async function createDetachedGitRepo(parentDir: string, name: string): Promise<string> {
   const repoPath = join(parentDir, name);
   await mkdir(repoPath, { recursive: true });
-  const env = { ...process.env, ...GIT_ENV, HOME: parentDir };
+  const env: Record<string, string> = {
+    PATH: process.env.PATH ?? "",
+    HOME: parentDir,
+    ...GIT_ENV,
+  };
 
   await spawnProc(["git", "init", "-b", "main", repoPath], undefined, env);
   await spawnProc(["git", "-C", repoPath, "config", "user.email", "test@test.com"], undefined, env);
