@@ -5,7 +5,13 @@ import { join } from "node:path";
 import { createPaths } from "../../constants";
 import { generateClaudeFiles } from "../../lib/claude";
 import { writeConfig } from "../../lib/config";
-import { cleanup, createTestDir, createTestGitRepo, GIT_ENV } from "../helpers";
+import {
+  cleanup,
+  createDetachedGitRepo,
+  createTestDir,
+  createTestGitRepo,
+  GIT_ENV,
+} from "../helpers";
 
 describe("generateClaudeFiles", () => {
   let tempDir: string;
@@ -320,31 +326,7 @@ describe("generateClaudeFiles", () => {
       const pathA = await setupRepo("ws", "alpha");
 
       // Create a repo with detached HEAD using the .git/HEAD write pattern
-      const detachedPath = join(tempDir, "bravo");
-      await mkdir(detachedPath, { recursive: true });
-      const gitEnv = {
-        ...process.env,
-        ...GIT_ENV,
-        HOME: tempDir,
-      };
-      Bun.spawnSync(["git", "init", "-b", "main", detachedPath], {
-        env: gitEnv,
-      });
-      Bun.spawnSync(["git", "-C", detachedPath, "config", "user.email", "test@test.com"], {
-        env: gitEnv,
-      });
-      Bun.spawnSync(["git", "-C", detachedPath, "config", "user.name", "Test"], { env: gitEnv });
-      writeFileSync(join(detachedPath, "README"), "x");
-      Bun.spawnSync(["git", "-C", detachedPath, "add", "."], { env: gitEnv });
-      Bun.spawnSync(["git", "-C", detachedPath, "commit", "-m", "init"], {
-        env: gitEnv,
-      });
-      const shaResult = Bun.spawnSync(["git", "-C", detachedPath, "rev-parse", "HEAD"], {
-        env: gitEnv,
-      });
-      const sha = new TextDecoder().decode(shaResult.stdout).trim();
-      writeFileSync(join(detachedPath, ".git", "HEAD"), `${sha}\n`);
-
+      const detachedPath = await createDetachedGitRepo(tempDir, "bravo");
       writeFileSync(join(detachedPath, "CLAUDE.md"), "# bravo\n");
 
       // Set up tree dir but no slug symlink (can't determine branch)
@@ -370,26 +352,7 @@ describe("generateClaudeFiles", () => {
       const pathA = await setupRepo("ws", "alpha");
 
       // Create a detached HEAD repo so getDefaultBranch fails
-      const detachedPath = join(tempDir, "bravo");
-      await mkdir(detachedPath, { recursive: true });
-      const gitEnv = { ...process.env, ...GIT_ENV, HOME: tempDir };
-      Bun.spawnSync(["git", "init", "-b", "main", detachedPath], {
-        env: gitEnv,
-      });
-      Bun.spawnSync(["git", "-C", detachedPath, "config", "user.email", "test@test.com"], {
-        env: gitEnv,
-      });
-      Bun.spawnSync(["git", "-C", detachedPath, "config", "user.name", "Test"], { env: gitEnv });
-      writeFileSync(join(detachedPath, "README"), "x");
-      Bun.spawnSync(["git", "-C", detachedPath, "add", "."], { env: gitEnv });
-      Bun.spawnSync(["git", "-C", detachedPath, "commit", "-m", "init"], {
-        env: gitEnv,
-      });
-      const shaResult = Bun.spawnSync(["git", "-C", detachedPath, "rev-parse", "HEAD"], {
-        env: gitEnv,
-      });
-      const sha = new TextDecoder().decode(shaResult.stdout).trim();
-      writeFileSync(join(detachedPath, ".git", "HEAD"), `${sha}\n`);
+      const detachedPath = await createDetachedGitRepo(tempDir, "bravo");
 
       // Set up a worktree slug with a CLAUDE.md so scanning can find it
       await setupWorktreeEntry("ws", "bravo", "feature-1", {
