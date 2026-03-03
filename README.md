@@ -54,14 +54,21 @@ grove ws status
 {
   "ok": true,
   "data": {
-    "workspace": "myproject",
-    "repos": [{ "name": "my-api", "path": "/path/to/my-api", "status": "ok" }],
-    "worktrees": [
+    "name": "myproject",
+    "path": "/Users/emma/grove-workspaces/myproject",
+    "repos": [
       {
-        "repo": "my-api",
-        "slug": "feat-auth",
-        "branch": "feat/auth",
-        "type": "pool"
+        "name": "my-api",
+        "path": "/path/to/my-api",
+        "status": "ok",
+        "worktrees": [
+          {
+            "repo": "my-api",
+            "slug": "feat-auth",
+            "branch": "feat/auth",
+            "type": "worktree"
+          }
+        ]
       }
     ]
   }
@@ -76,7 +83,7 @@ grove ws status
 | ------------------------- | --------------------------------------- |
 | `add <name>`              | Create a workspace                      |
 | `list`                    | List workspaces                         |
-| `remove <name> [--force]` | Remove a workspace                      |
+| `remove [name] [--force]` | Remove a workspace                      |
 | `status [workspace]`      | Repos + worktrees overview              |
 | `path [workspace]`        | Print workspace path                    |
 | `sync [workspace]`        | Repair symlinks, prune dangling entries |
@@ -91,23 +98,23 @@ grove ws status
 
 ### Worktrees — `grove ws worktree <command>`
 
-| Command                                     | Description                     |
-| ------------------------------------------- | ------------------------------- |
-| `add [repo] <branch> [--new] [--from base]` | Create a worktree (shared pool) |
-| `list [repo]`                               | List worktrees                  |
-| `remove [repo] <slug> [--force]`            | Remove a worktree               |
-| `prune`                                     | Clean up dangling symlinks      |
+| Command                                                  | Description                     |
+| -------------------------------------------------------- | ------------------------------- |
+| `add [repo] <branch> [--new] [--from base] [--no-setup]` | Create a worktree (shared pool) |
+| `list [repo]`                                            | List worktrees                  |
+| `remove [repo] <slug> [--force]`                         | Remove a worktree               |
+| `prune`                                                  | Clean up dangling symlinks      |
 
 ### Other
 
-| Command                                                                    | Description                                    |
-| -------------------------------------------------------------------------- | ---------------------------------------------- |
-| `grove ws exec <cmd> (<file> \| --repo R) [--match <pattern>] [--dry-run]` | Run standard command (setup/test/format/check) |
-| `grove mcp-server [--workspace W]`                                         | Start MCP server (top-level, not under `ws`)   |
+| Command                                                                 | Description                                                                           |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `grove ws exec <cmd> [file] [--repo R] [--match <pattern>] [--dry-run]` | Run workspace command (`setup`, `format`, `test`, `check`, `test:file`, `test:match`) |
+| `grove mcp-server [--workspace W] [--port P]`                           | Start MCP server (top-level, not under `ws`)                                          |
 
 Bracketed args are inferred from CWD. Override with `--workspace` flag or `GROVE_WORKSPACE` env var.
 
-List commands output JSON by default. Pass `--porcelain` for tab-separated plaintext.
+List commands output JSON by default. Pass `--porcelain` for stable, script-friendly plaintext (format varies per command).
 
 ## Integrations
 
