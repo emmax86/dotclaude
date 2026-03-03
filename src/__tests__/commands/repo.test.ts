@@ -1,13 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readFileSync,
-  readlinkSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { exists, lstat, mkdir, readFile, readlink, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { addRepo, listRepos, removeRepo } from "../../commands/repo";
@@ -42,19 +34,19 @@ describe("repo commands", () => {
     expect(result.ok).toBe(true);
 
     // repos/myrepo symlink exists
-    expect(existsSync(paths.repoEntry("myrepo"))).toBe(true);
-    expect(lstatSync(paths.repoEntry("myrepo")).isSymbolicLink()).toBe(true);
+    expect(await exists(paths.repoEntry("myrepo"))).toBe(true);
+    expect((await lstat(paths.repoEntry("myrepo"))).isSymbolicLink()).toBe(true);
 
     // {workspace}/trees/myrepo is a directory
     const repoDir = paths.repoDir("myws", "myrepo");
-    expect(existsSync(repoDir)).toBe(true);
-    expect(lstatSync(repoDir).isDirectory()).toBe(true);
-    expect(lstatSync(repoDir).isSymbolicLink()).toBe(false);
+    expect(await exists(repoDir)).toBe(true);
+    expect((await lstat(repoDir)).isDirectory()).toBe(true);
+    expect((await lstat(repoDir)).isSymbolicLink()).toBe(false);
 
     // {workspace}/trees/myrepo/main symlink points to ../../../repos/myrepo
     const defaultSlugPath = join(repoDir, "main");
-    expect(lstatSync(defaultSlugPath).isSymbolicLink()).toBe(true);
-    expect(readlinkSync(defaultSlugPath)).toBe("../../../repos/myrepo");
+    expect((await lstat(defaultSlugPath)).isSymbolicLink()).toBe(true);
+    expect(await readlink(defaultSlugPath)).toBe("../../../repos/myrepo");
   });
 
   it("add then list includes repo", async () => {
@@ -80,15 +72,15 @@ describe("repo commands", () => {
     if (result.ok) {
       expect(result.value.name).toBe("customname");
     }
-    expect(existsSync(paths.repoEntry("customname"))).toBe(true);
+    expect(await exists(paths.repoEntry("customname"))).toBe(true);
     // repo dir under trees/ uses the override name
-    expect(existsSync(paths.repoDir("myws", "customname"))).toBe(true);
-    expect(lstatSync(paths.repoDir("myws", "customname")).isDirectory()).toBe(true);
+    expect(await exists(paths.repoDir("myws", "customname"))).toBe(true);
+    expect((await lstat(paths.repoDir("myws", "customname"))).isDirectory()).toBe(true);
   });
 
   it("add fails if path is not a git repo", async () => {
     const plainDir = join(tempDir, "notarepo");
-    mkdirSync(plainDir);
+    await mkdir(plainDir);
     const result = await addRepo("myws", plainDir, undefined, paths, GIT_ENV);
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -103,18 +95,18 @@ describe("repo commands", () => {
     expect(result.ok).toBe(true);
 
     // Only one repos/myrepo entry
-    const treeStat = lstatSync(paths.repoEntry("myrepo"));
+    const treeStat = await lstat(paths.repoEntry("myrepo"));
     expect(treeStat.isSymbolicLink()).toBe(true);
 
     // Each workspace has its own trees/myrepo directory
-    expect(lstatSync(paths.repoDir("myws", "myrepo")).isDirectory()).toBe(true);
-    expect(lstatSync(paths.repoDir("otherws", "myrepo")).isDirectory()).toBe(true);
+    expect((await lstat(paths.repoDir("myws", "myrepo"))).isDirectory()).toBe(true);
+    expect((await lstat(paths.repoDir("otherws", "myrepo"))).isDirectory()).toBe(true);
 
     // Both workspaces have their own default branch symlinks
     const ws1Link = join(paths.repoDir("myws", "myrepo"), "main");
     const ws2Link = join(paths.repoDir("otherws", "myrepo"), "main");
-    expect(lstatSync(ws1Link).isSymbolicLink()).toBe(true);
-    expect(lstatSync(ws2Link).isSymbolicLink()).toBe(true);
+    expect((await lstat(ws1Link)).isSymbolicLink()).toBe(true);
+    expect((await lstat(ws2Link)).isSymbolicLink()).toBe(true);
   });
 
   it("add rejects reserved repo name 'trees'", async () => {
@@ -150,9 +142,9 @@ describe("repo commands", () => {
   });
 
   it("add creates repos/ directory lazily on first use", async () => {
-    expect(existsSync(paths.repos)).toBe(false);
+    expect(await exists(paths.repos)).toBe(false);
     await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
-    expect(existsSync(paths.repos)).toBe(true);
+    expect(await exists(paths.repos)).toBe(true);
   });
 
   it("remove excludes repo from list but global tree remains", async () => {
@@ -166,10 +158,10 @@ describe("repo commands", () => {
     }
 
     // Global repo symlink stays
-    expect(existsSync(paths.repoEntry("myrepo"))).toBe(true);
+    expect(await exists(paths.repoEntry("myrepo"))).toBe(true);
 
     // Repo dir under trees/ is removed
-    expect(existsSync(paths.repoDir("myws", "myrepo"))).toBe(false);
+    expect(await exists(paths.repoDir("myws", "myrepo"))).toBe(false);
   });
 
   it("remove refuses if real worktrees exist without --force", async () => {
@@ -189,24 +181,22 @@ describe("repo commands", () => {
 
     const result = await removeRepo("myws", "myrepo", { force: true }, paths, GIT_ENV);
     expect(result.ok).toBe(true);
-    expect(existsSync(paths.repoDir("myws", "myrepo"))).toBe(false);
+    expect(await exists(paths.repoDir("myws", "myrepo"))).toBe(false);
     // Global repo entry stays
-    expect(existsSync(paths.repoEntry("myrepo"))).toBe(true);
+    expect(await exists(paths.repoEntry("myrepo"))).toBe(true);
   });
 
   it("remove succeeds when repo dir is already missing", async () => {
     await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
     // Manually remove the repo dir before calling removeRepo
-    rmSync(paths.repoDir("myws", "myrepo"), { recursive: true });
+    await rm(paths.repoDir("myws", "myrepo"), { recursive: true });
     const result = await removeRepo("myws", "myrepo", {}, paths, GIT_ENV);
     expect(result.ok).toBe(true);
   });
 
   it("addRepo updates .code-workspace with repo folder", async () => {
     await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
-    const content = JSON.parse(
-      require("node:fs").readFileSync(paths.vscodeWorkspace("myws"), "utf-8"),
-    );
+    const content = JSON.parse(await readFile(paths.vscodeWorkspace("myws"), "utf-8"));
     expect(content.folders).toHaveLength(2);
     expect(content.folders[1]).toEqual({
       path: "trees/myrepo",
@@ -217,9 +207,7 @@ describe("repo commands", () => {
   it("removeRepo removes repo from .code-workspace", async () => {
     await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
     await removeRepo("myws", "myrepo", {}, paths, GIT_ENV);
-    const content = JSON.parse(
-      require("node:fs").readFileSync(paths.vscodeWorkspace("myws"), "utf-8"),
-    );
+    const content = JSON.parse(await readFile(paths.vscodeWorkspace("myws"), "utf-8"));
     expect(content.folders).toHaveLength(1);
     expect(content.folders[0].path).toBe(".");
   });
@@ -227,7 +215,7 @@ describe("repo commands", () => {
   it("dangling symlink reported in list status", async () => {
     await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
     // Remove the actual repo directory to make symlink dangling
-    rmSync(repoPath, { recursive: true, force: true });
+    await rm(repoPath, { recursive: true, force: true });
 
     const list = await listRepos("myws", paths);
     expect(list.ok).toBe(true);
@@ -253,13 +241,13 @@ describe("repo commands", () => {
     await addWorktree("myws", "myrepo", "feature/pool", { newBranch: true }, paths, GIT_ENV);
 
     const poolEntry = paths.worktreePoolEntry("myrepo", "feature-pool");
-    expect(existsSync(poolEntry)).toBe(true);
+    expect(await exists(poolEntry)).toBe(true);
 
     const result = await removeRepo("myws", "myrepo", { force: true }, paths, GIT_ENV);
     expect(result.ok).toBe(true);
-    expect(existsSync(paths.repoDir("myws", "myrepo"))).toBe(false);
+    expect(await exists(paths.repoDir("myws", "myrepo"))).toBe(false);
     // Pool entry removed since last reference
-    expect(existsSync(poolEntry)).toBe(false);
+    expect(await exists(poolEntry)).toBe(false);
   });
 
   it("remove --force with shared pool worktree preserves pool entry for other workspace", async () => {
@@ -276,11 +264,11 @@ describe("repo commands", () => {
     expect(result.ok).toBe(true);
 
     // Pool entry persists
-    expect(existsSync(poolEntry)).toBe(true);
+    expect(await exists(poolEntry)).toBe(true);
 
     // otherws symlink intact
     expect(
-      lstatSync(paths.worktreeDir("otherws", "myrepo", "feature-shared")).isSymbolicLink(),
+      (await lstat(paths.worktreeDir("otherws", "myrepo", "feature-shared"))).isSymbolicLink(),
     ).toBe(true);
   });
 
@@ -295,18 +283,18 @@ describe("repo commands", () => {
     }
 
     // Verify cleanup: repo dir should not exist
-    expect(existsSync(paths.repoDir("myws", "detached-repo"))).toBe(false);
+    expect(await exists(paths.repoDir("myws", "detached-repo"))).toBe(false);
   });
 
   it("addRepo rollback: cleans up on config write failure", async () => {
     // Write invalid JSON to workspace.json so addRepoToConfig fails
-    writeFileSync(paths.workspaceConfig("myws"), "not-valid-json");
+    await writeFile(paths.workspaceConfig("myws"), "not-valid-json");
 
     const result = await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
     expect(result.ok).toBe(false);
 
     // Cleanup should have removed the repo dir
-    expect(existsSync(paths.repoDir("myws", "myrepo"))).toBe(false);
+    expect(await exists(paths.repoDir("myws", "myrepo"))).toBe(false);
   });
 
   it("addRepo rejects empty name", async () => {
@@ -338,41 +326,41 @@ describe("repo commands", () => {
     await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
 
     // Externally delete the workspace symlink — metadata entry remains in worktrees.json
-    rmSync(paths.worktreeDir("myws", "myrepo", "feature-x"), { force: true });
+    await rm(paths.worktreeDir("myws", "myrepo", "feature-x"), { force: true });
 
-    const before = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+    const before = JSON.parse(await readFile(paths.worktreePoolConfig, "utf-8"));
     expect(before.myrepo?.["feature-x"]).toContain("myws");
 
     const result = await removeRepo("myws", "myrepo", { force: true }, paths, GIT_ENV);
     expect(result.ok).toBe(true);
 
     // worktrees.json should be cleaned
-    const after = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+    const after = JSON.parse(await readFile(paths.worktreePoolConfig, "utf-8"));
     expect(after.myrepo).toBeUndefined();
   });
 
   it("addRepo generates trees.md", async () => {
-    writeFileSync(join(repoPath, "CLAUDE.md"), "# myrepo\n");
+    await writeFile(join(repoPath, "CLAUDE.md"), "# myrepo\n");
     const result = await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
     expect(result.ok).toBe(true);
-    expect(existsSync(paths.claudeTreesMd("myws"))).toBe(true);
-    const content = readFileSync(paths.claudeTreesMd("myws"), "utf-8");
+    expect(await exists(paths.claudeTreesMd("myws"))).toBe(true);
+    const content = await readFile(paths.claudeTreesMd("myws"), "utf-8");
     expect(content).toContain("@../trees/myrepo/main/CLAUDE.md");
   });
 
   it("removeRepo updates trees.md", async () => {
     const repoPath2 = await createTestGitRepo(tempDir, "other");
-    writeFileSync(join(repoPath, "CLAUDE.md"), "# myrepo\n");
-    writeFileSync(join(repoPath2, "CLAUDE.md"), "# other\n");
+    await writeFile(join(repoPath, "CLAUDE.md"), "# myrepo\n");
+    await writeFile(join(repoPath2, "CLAUDE.md"), "# other\n");
     await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
     await addRepo("myws", repoPath2, undefined, paths, GIT_ENV);
 
-    const before = readFileSync(paths.claudeTreesMd("myws"), "utf-8");
+    const before = await readFile(paths.claudeTreesMd("myws"), "utf-8");
     expect(before).toContain("myrepo");
     expect(before).toContain("other");
 
     await removeRepo("myws", "myrepo", {}, paths, GIT_ENV);
-    const after = readFileSync(paths.claudeTreesMd("myws"), "utf-8");
+    const after = await readFile(paths.claudeTreesMd("myws"), "utf-8");
     expect(after).not.toContain("myrepo");
     expect(after).toContain("other");
   });
@@ -390,9 +378,9 @@ describe("repo commands", () => {
     const result = await removeRepo("myws", "myrepo", { force: true }, paths, GIT_ENV);
 
     // Function may return ok or WORKTREE_REMOVE_FAILED, but repoDir must be gone
-    expect(existsSync(paths.repoDir("myws", "myrepo"))).toBe(false);
+    expect(await exists(paths.repoDir("myws", "myrepo"))).toBe(false);
     // Repo must be deregistered from workspace.json
-    const config = JSON.parse(readFileSync(paths.workspaceConfig("myws"), "utf-8"));
+    const config = JSON.parse(await readFile(paths.workspaceConfig("myws"), "utf-8"));
     expect(config.repos.find((r: { name: string }) => r.name === "myrepo")).toBeUndefined();
     // Result may be ok or error — but if error it must be WORKTREE_REMOVE_FAILED
     if (!result.ok) {

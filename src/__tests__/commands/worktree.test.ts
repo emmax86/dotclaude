@@ -1,15 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
-  chmodSync,
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readFileSync,
-  readlinkSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
+  chmod,
+  exists,
+  lstat,
+  mkdir,
+  readFile,
+  readlink,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 
 import { addRepo } from "../../commands/repo";
@@ -52,18 +53,18 @@ describe("worktree commands", () => {
     const wtPath = paths.worktreeDir("myws", "myrepo", "feature-x");
 
     // Workspace entry is a symlink
-    const lstat = lstatSync(wtPath);
-    expect(lstat.isSymbolicLink()).toBe(true);
+    const lstatResult = await lstat(wtPath);
+    expect(lstatResult.isSymbolicLink()).toBe(true);
 
     // Symlink target points to pool
-    const target = readlinkSync(wtPath);
+    const target = await readlink(wtPath);
     expect(target).toBe("../../../worktrees/myrepo/feature-x");
 
     // Pool entry is a real directory
     const poolEntry = paths.worktreePoolEntry("myrepo", "feature-x");
-    expect(existsSync(poolEntry)).toBe(true);
-    expect(lstatSync(poolEntry).isDirectory()).toBe(true);
-    expect(lstatSync(poolEntry).isSymbolicLink()).toBe(false);
+    expect(await exists(poolEntry)).toBe(true);
+    expect((await lstat(poolEntry)).isDirectory()).toBe(true);
+    expect((await lstat(poolEntry)).isSymbolicLink()).toBe(false);
   });
 
   it("add then list includes worktree", async () => {
@@ -156,13 +157,13 @@ describe("worktree commands", () => {
     expect(result.ok).toBe(true);
 
     // Both workspace entries are symlinks pointing to same pool
-    const ws1Link = readlinkSync(paths.worktreeDir("myws", "myrepo", "feature-shared"));
-    const ws2Link = readlinkSync(paths.worktreeDir("otherws", "myrepo", "feature-shared"));
+    const ws1Link = await readlink(paths.worktreeDir("myws", "myrepo", "feature-shared"));
+    const ws2Link = await readlink(paths.worktreeDir("otherws", "myrepo", "feature-shared"));
     expect(ws1Link).toBe("../../../worktrees/myrepo/feature-shared");
     expect(ws2Link).toBe("../../../worktrees/myrepo/feature-shared");
 
     // worktrees.json lists both workspaces
-    const poolRaw = readFileSync(paths.worktreePoolConfig, "utf-8");
+    const poolRaw = await readFile(paths.worktreePoolConfig, "utf-8");
     const pool = JSON.parse(poolRaw);
     expect(pool.myrepo["feature-shared"]).toContain("myws");
     expect(pool.myrepo["feature-shared"]).toContain("otherws");
@@ -182,7 +183,7 @@ describe("worktree commands", () => {
   it("remove refuses dirty worktree without --force", async () => {
     await addWorktree("myws", "myrepo", "feature/dirty", { newBranch: true }, paths, GIT_ENV);
     const poolEntryPath = paths.worktreePoolEntry("myrepo", "feature-dirty");
-    writeFileSync(join(poolEntryPath, "dirty.txt"), "dirty");
+    await writeFile(join(poolEntryPath, "dirty.txt"), "dirty");
 
     const result = await removeWorktree("myws", "myrepo", "feature-dirty", {}, paths, GIT_ENV);
     expect(result.ok).toBe(false);
@@ -191,7 +192,7 @@ describe("worktree commands", () => {
   it("remove --force removes dirty worktree", async () => {
     await addWorktree("myws", "myrepo", "feature/dirty2", { newBranch: true }, paths, GIT_ENV);
     const poolEntryPath = paths.worktreePoolEntry("myrepo", "feature-dirty2");
-    writeFileSync(join(poolEntryPath, "dirty.txt"), "dirty");
+    await writeFile(join(poolEntryPath, "dirty.txt"), "dirty");
 
     const result = await removeWorktree(
       "myws",
@@ -214,7 +215,7 @@ describe("worktree commands", () => {
 
   it("remove refuses default branch symlink even when dangling", async () => {
     // Make default branch symlink dangle by removing the global repo entry
-    rmSync(paths.repoEntry("myrepo"));
+    await rm(paths.repoEntry("myrepo"));
     const result = await removeWorktree("myws", "myrepo", "main", {}, paths, GIT_ENV);
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -225,7 +226,7 @@ describe("worktree commands", () => {
   it("list includes dangling default branch symlink as linked type", async () => {
     // Make default branch symlink dangle by removing the global repo entry
     try {
-      rmSync(paths.repoEntry("myrepo"));
+      await rm(paths.repoEntry("myrepo"));
     } catch {
       /* already gone from previous test */
     }
@@ -242,13 +243,13 @@ describe("worktree commands", () => {
     await addWorktree("myws", "myrepo", "feature/tracked", { newBranch: true }, paths, GIT_ENV);
 
     // After add
-    const afterAdd = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+    const afterAdd = JSON.parse(await readFile(paths.worktreePoolConfig, "utf-8"));
     expect(afterAdd.myrepo["feature-tracked"]).toContain("myws");
 
     await removeWorktree("myws", "myrepo", "feature-tracked", {}, paths, GIT_ENV);
 
     // After remove — entry should be gone
-    const afterRemove = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+    const afterRemove = JSON.parse(await readFile(paths.worktreePoolConfig, "utf-8"));
     expect(afterRemove.myrepo).toBeUndefined();
   });
 
@@ -267,24 +268,19 @@ describe("worktree commands", () => {
     expect(r1.ok).toBe(true);
 
     // ws1 symlink is gone
-    let ws1Gone = false;
-    try {
-      lstatSync(paths.worktreeDir("myws", "myrepo", "feature-cross"));
-    } catch {
-      ws1Gone = true;
-    }
+    const ws1Gone = !(await exists(paths.worktreeDir("myws", "myrepo", "feature-cross")));
     expect(ws1Gone).toBe(true);
 
     // Pool entry persists
-    expect(existsSync(poolEntry)).toBe(true);
+    expect(await exists(poolEntry)).toBe(true);
 
     // ws2 symlink intact
     expect(
-      lstatSync(paths.worktreeDir("otherws", "myrepo", "feature-cross")).isSymbolicLink(),
+      (await lstat(paths.worktreeDir("otherws", "myrepo", "feature-cross"))).isSymbolicLink(),
     ).toBe(true);
 
     // worktrees.json has only otherws
-    const pool1 = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+    const pool1 = JSON.parse(await readFile(paths.worktreePoolConfig, "utf-8"));
     expect(pool1.myrepo["feature-cross"]).toEqual(["otherws"]);
 
     // Remove from ws2
@@ -292,16 +288,16 @@ describe("worktree commands", () => {
     expect(r2.ok).toBe(true);
 
     // Pool entry is gone
-    expect(existsSync(poolEntry)).toBe(false);
+    expect(await exists(poolEntry)).toBe(false);
 
     // worktrees.json empty for myrepo
-    const pool2 = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+    const pool2 = JSON.parse(await readFile(paths.worktreePoolConfig, "utf-8"));
     expect(pool2.myrepo).toBeUndefined();
   });
 
   it("addWorktree rollback: removes symlink and pool entry when addPoolReference fails", async () => {
     // Write an array to worktrees.json so readPoolConfig returns POOL_CONFIG_INVALID
-    writeFileSync(paths.worktreePoolConfig, JSON.stringify([1, 2, 3]));
+    await writeFile(paths.worktreePoolConfig, JSON.stringify([1, 2, 3]));
 
     const result = await addWorktree(
       "myws",
@@ -317,22 +313,17 @@ describe("worktree commands", () => {
     }
 
     // Workspace symlink should have been rolled back
-    let symlinkGone = false;
-    try {
-      lstatSync(paths.worktreeDir("myws", "myrepo", "feature-pool-fail"));
-    } catch {
-      symlinkGone = true;
-    }
+    const symlinkGone = !(await exists(paths.worktreeDir("myws", "myrepo", "feature-pool-fail")));
     expect(symlinkGone).toBe(true);
 
     // Pool entry should have been rolled back
-    expect(existsSync(paths.worktreePoolEntry("myrepo", "feature-pool-fail"))).toBe(false);
+    expect(await exists(paths.worktreePoolEntry("myrepo", "feature-pool-fail"))).toBe(false);
   });
 
   it("addWorktree rollback: removes pool entry when symlink creation fails", async () => {
     // Make the repo dir read-only so symlink fails
     const repoDir = paths.repoDir("myws", "myrepo");
-    chmodSync(repoDir, 0o444);
+    await chmod(repoDir, 0o444);
 
     const result = await addWorktree(
       "myws",
@@ -342,12 +333,12 @@ describe("worktree commands", () => {
       paths,
       GIT_ENV,
     );
-    chmodSync(repoDir, 0o755); // restore
+    await chmod(repoDir, 0o755); // restore
 
     expect(result.ok).toBe(false);
     // Pool entry should have been rolled back
     const poolEntry = paths.worktreePoolEntry("myrepo", "feature-ro");
-    expect(existsSync(poolEntry)).toBe(false);
+    expect(await exists(poolEntry)).toBe(false);
   });
 
   it("addWorktree fails when git worktree add fails", async () => {
@@ -378,14 +369,14 @@ describe("worktree commands", () => {
     await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
 
     // Externally delete the workspace symlink (simulates manual deletion)
-    rmSync(paths.worktreeDir("myws", "myrepo", "feature-x"), { force: true });
+    await rm(paths.worktreeDir("myws", "myrepo", "feature-x"), { force: true });
 
     // classifyWorktreeEntry returns null for the missing symlink — should fall back to json lookup
     const result = await removeWorktree("myws", "myrepo", "feature-x", {}, paths, GIT_ENV);
     expect(result.ok).toBe(true);
 
     // worktrees.json should be cleaned up
-    const pool = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+    const pool = JSON.parse(await readFile(paths.worktreePoolConfig, "utf-8"));
     expect(pool.myrepo).toBeUndefined();
   });
 
@@ -403,7 +394,7 @@ describe("worktree commands", () => {
       await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
       const wtPath = paths.worktreeDir("myws", "myrepo", "feature-x");
       // Delete pool entry to make the workspace symlink dangle
-      rmSync(paths.worktreePoolEntry("myrepo", "feature-x"), {
+      await rm(paths.worktreePoolEntry("myrepo", "feature-x"), {
         recursive: true,
         force: true,
       });
@@ -416,17 +407,12 @@ describe("worktree commands", () => {
         expect(result.value.pruned[0].slug).toBe("feature-x");
       }
 
-      // Symlink was removed — lstatSync should throw
-      let symlinkGone = false;
-      try {
-        lstatSync(wtPath);
-      } catch {
-        symlinkGone = true;
-      }
+      // Symlink was removed — lstat should throw
+      const symlinkGone = !(await exists(wtPath));
       expect(symlinkGone).toBe(true);
 
       // worktrees.json cleaned up
-      const pool = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+      const pool = JSON.parse(await readFile(paths.worktreePoolConfig, "utf-8"));
       expect(pool.myrepo).toBeUndefined();
     });
 
@@ -434,7 +420,7 @@ describe("worktree commands", () => {
       await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
       await addWorktree("myws", "myrepo", "feature/y", { newBranch: true }, paths, GIT_ENV);
       // Delete only feature-x pool entry
-      rmSync(paths.worktreePoolEntry("myrepo", "feature-x"), {
+      await rm(paths.worktreePoolEntry("myrepo", "feature-x"), {
         recursive: true,
         force: true,
       });
@@ -447,14 +433,14 @@ describe("worktree commands", () => {
       }
 
       // feature-y symlink still exists
-      expect(lstatSync(paths.worktreeDir("myws", "myrepo", "feature-y")).isSymbolicLink()).toBe(
+      expect((await lstat(paths.worktreeDir("myws", "myrepo", "feature-y"))).isSymbolicLink()).toBe(
         true,
       );
     });
 
     it("does not prune linked (default-branch) symlinks", async () => {
       // Dangle the repos/ entry so the linked symlink (main) becomes dangling too
-      rmSync(paths.repoEntry("myrepo"), { force: true });
+      await rm(paths.repoEntry("myrepo"), { force: true });
 
       const result = await pruneWorktrees("myws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
@@ -463,7 +449,9 @@ describe("worktree commands", () => {
       }
 
       // The linked symlink file itself is still present
-      expect(lstatSync(paths.worktreeDir("myws", "myrepo", "main")).isSymbolicLink()).toBe(true);
+      expect((await lstat(paths.worktreeDir("myws", "myrepo", "main"))).isSymbolicLink()).toBe(
+        true,
+      );
     });
 
     it("does prune default-branch linked symlink when HEAD is on a non-default branch and symlink is dangling (known HEAD limitation)", async () => {
@@ -476,7 +464,7 @@ describe("worktree commands", () => {
         ...process.env,
         ...GIT_ENV,
       });
-      rmSync(paths.repoEntry("myrepo"), { force: true });
+      await rm(paths.repoEntry("myrepo"), { force: true });
 
       const result = await pruneWorktrees("myws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
@@ -488,7 +476,7 @@ describe("worktree commands", () => {
 
     it("does not prune legacy directories", async () => {
       const legacyDir = paths.worktreeDir("myws", "myrepo", "legacy-slug");
-      mkdirSync(legacyDir, { recursive: true });
+      await mkdir(legacyDir, { recursive: true });
 
       const result = await pruneWorktrees("myws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
@@ -497,7 +485,7 @@ describe("worktree commands", () => {
       }
 
       // Directory still exists
-      expect(lstatSync(legacyDir).isDirectory()).toBe(true);
+      expect((await lstat(legacyDir)).isDirectory()).toBe(true);
     });
 
     it("does prune dangling symlinks across multiple repos when targets are missing", async () => {
@@ -506,11 +494,11 @@ describe("worktree commands", () => {
       await addWorktree("myws", "myrepo", "feature/a", { newBranch: true }, paths, GIT_ENV);
       await addWorktree("myws", "myrepo2", "feature/a", { newBranch: true }, paths, GIT_ENV);
 
-      rmSync(paths.worktreePoolEntry("myrepo", "feature-a"), {
+      await rm(paths.worktreePoolEntry("myrepo", "feature-a"), {
         recursive: true,
         force: true,
       });
-      rmSync(paths.worktreePoolEntry("myrepo2", "feature-a"), {
+      await rm(paths.worktreePoolEntry("myrepo2", "feature-a"), {
         recursive: true,
         force: true,
       });
@@ -535,7 +523,7 @@ describe("worktree commands", () => {
       await addWorktree("otherws", "myrepo", "feature/shared", {}, paths, GIT_ENV);
 
       // Delete pool entry — both workspace symlinks dangle
-      rmSync(paths.worktreePoolEntry("myrepo", "feature-shared"), {
+      await rm(paths.worktreePoolEntry("myrepo", "feature-shared"), {
         recursive: true,
         force: true,
       });
@@ -549,15 +537,15 @@ describe("worktree commands", () => {
         expect(result.value.pruned[0].slug).toBe("feature-shared");
       }
 
-      // ws B's symlink is untouched — lstatSync should succeed
+      // ws B's symlink is untouched — lstat should succeed
       expect(
-        lstatSync(paths.worktreeDir("otherws", "myrepo", "feature-shared")).isSymbolicLink(),
+        (await lstat(paths.worktreeDir("otherws", "myrepo", "feature-shared"))).isSymbolicLink(),
       ).toBe(true);
     });
 
     it("does return empty pruned list when called again after previous prune", async () => {
       await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
-      rmSync(paths.worktreePoolEntry("myrepo", "feature-x"), {
+      await rm(paths.worktreePoolEntry("myrepo", "feature-x"), {
         recursive: true,
         force: true,
       });
@@ -584,11 +572,11 @@ describe("worktree commands", () => {
       const wtPath = paths.worktreeDir("myws", "myrepo", "feature-x");
 
       // Delete pool entry AND repos/ symlink
-      rmSync(paths.worktreePoolEntry("myrepo", "feature-x"), {
+      await rm(paths.worktreePoolEntry("myrepo", "feature-x"), {
         recursive: true,
         force: true,
       });
-      rmSync(paths.repoEntry("myrepo"), { force: true });
+      await rm(paths.repoEntry("myrepo"), { force: true });
 
       const result = await pruneWorktrees("myws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
@@ -598,12 +586,7 @@ describe("worktree commands", () => {
       }
 
       // Symlink was removed
-      let symlinkGone = false;
-      try {
-        lstatSync(wtPath);
-      } catch {
-        symlinkGone = true;
-      }
+      const symlinkGone = !(await exists(wtPath));
       expect(symlinkGone).toBe(true);
     });
 
@@ -611,13 +594,13 @@ describe("worktree commands", () => {
       // Create pool dir and workspace symlink manually (no worktrees.json involved)
       const slug = "manual";
       const poolEntry = paths.worktreePoolEntry("myrepo", slug);
-      mkdirSync(poolEntry, { recursive: true });
+      await mkdir(poolEntry, { recursive: true });
       const wtPath = paths.worktreeDir("myws", "myrepo", slug);
-      symlinkSync(relative(dirname(wtPath), poolEntry), wtPath);
+      await symlink(relative(dirname(wtPath), poolEntry), wtPath);
 
       // Delete pool entry to make symlink dangle, and ensure no worktrees.json
-      rmSync(poolEntry, { recursive: true, force: true });
-      rmSync(paths.worktreePoolConfig, { force: true });
+      await rm(poolEntry, { recursive: true, force: true });
+      await rm(paths.worktreePoolConfig, { force: true });
 
       const result = await pruneWorktrees("myws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
@@ -627,17 +610,15 @@ describe("worktree commands", () => {
       }
 
       // Symlink was removed
-      let symlinkGone = false;
-      try {
-        lstatSync(wtPath);
-      } catch {
-        symlinkGone = true;
-      }
+      const symlinkGone = !(await exists(wtPath));
       expect(symlinkGone).toBe(true);
     });
 
     it("skips repo when trees/{repo}/ directory is missing", async () => {
-      rmSync(paths.repoDir("myws", "myrepo"), { recursive: true, force: true });
+      await rm(paths.repoDir("myws", "myrepo"), {
+        recursive: true,
+        force: true,
+      });
 
       const result = await pruneWorktrees("myws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
@@ -650,13 +631,15 @@ describe("worktree commands", () => {
       await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
 
       // Delete both the workspace symlink and the pool dir — orphaned json entry remains
-      rmSync(paths.worktreeDir("myws", "myrepo", "feature-x"), { force: true });
-      rmSync(paths.worktreePoolEntry("myrepo", "feature-x"), {
+      await rm(paths.worktreeDir("myws", "myrepo", "feature-x"), {
+        force: true,
+      });
+      await rm(paths.worktreePoolEntry("myrepo", "feature-x"), {
         recursive: true,
         force: true,
       });
 
-      const before = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+      const before = JSON.parse(await readFile(paths.worktreePoolConfig, "utf-8"));
       expect(before.myrepo?.["feature-x"]).toContain("myws");
 
       const result = await pruneWorktrees("myws", paths, GIT_ENV);
@@ -666,14 +649,14 @@ describe("worktree commands", () => {
         expect(result.value.pruned[0].slug).toBe("feature-x");
       }
 
-      const after = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+      const after = JSON.parse(await readFile(paths.worktreePoolConfig, "utf-8"));
       expect(after.myrepo).toBeUndefined();
     });
 
     it("does prune dangling linked symlinks when slug does not match default branch", async () => {
       const repoDir = paths.repoDir("myws", "myrepo");
       const wtPath = join(repoDir, "stale-link");
-      symlinkSync("does-not-exist", wtPath);
+      await symlink("does-not-exist", wtPath);
 
       const result = await pruneWorktrees("myws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
@@ -684,21 +667,16 @@ describe("worktree commands", () => {
       }
 
       // Symlink was removed
-      let symlinkGone = false;
-      try {
-        lstatSync(wtPath);
-      } catch {
-        symlinkGone = true;
-      }
+      const symlinkGone = !(await exists(wtPath));
       expect(symlinkGone).toBe(true);
     });
 
     it("does not prune linked symlinks when target exists", async () => {
       const repoDir = paths.repoDir("myws", "myrepo");
       const existingDir = join(repoDir, "_real-target");
-      mkdirSync(existingDir, { recursive: true });
+      await mkdir(existingDir, { recursive: true });
       const wtPath = join(repoDir, "real-link");
-      symlinkSync(existingDir, wtPath);
+      await symlink(existingDir, wtPath);
 
       const result = await pruneWorktrees("myws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
@@ -707,17 +685,17 @@ describe("worktree commands", () => {
       }
 
       // Symlink still exists
-      expect(lstatSync(wtPath).isSymbolicLink()).toBe(true);
+      expect((await lstat(wtPath)).isSymbolicLink()).toBe(true);
     });
 
     it("does not prune linked symlinks when default branch cannot be determined", async () => {
       // Create a dangling linked symlink for a non-default slug
       const repoDir = paths.repoDir("myws", "myrepo");
       const wtPath = join(repoDir, "stale-link");
-      symlinkSync("does-not-exist", wtPath);
+      await symlink("does-not-exist", wtPath);
 
       // Remove the actual git repo directory so getDefaultBranch fails
-      rmSync(repoPath, { recursive: true, force: true });
+      await rm(repoPath, { recursive: true, force: true });
 
       const result = await pruneWorktrees("myws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
@@ -726,7 +704,7 @@ describe("worktree commands", () => {
       }
 
       // Symlink still exists (conservative: skip all linked when default unknown)
-      expect(lstatSync(wtPath).isSymbolicLink()).toBe(true);
+      expect((await lstat(wtPath)).isSymbolicLink()).toBe(true);
     });
 
     it("does continue pruning remaining entries when rm fails for one entry", async () => {
@@ -736,23 +714,23 @@ describe("worktree commands", () => {
       await addWorktree("myws", "myrepo2", "feature/perm", { newBranch: true }, paths, GIT_ENV);
 
       // Delete both pool entries to make both symlinks dangle
-      rmSync(paths.worktreePoolEntry("myrepo", "feature-perm"), {
+      await rm(paths.worktreePoolEntry("myrepo", "feature-perm"), {
         recursive: true,
         force: true,
       });
-      rmSync(paths.worktreePoolEntry("myrepo2", "feature-perm"), {
+      await rm(paths.worktreePoolEntry("myrepo2", "feature-perm"), {
         recursive: true,
         force: true,
       });
 
       // Make myrepo's trees dir read-only so rm on its symlink fails
       const treesDir = paths.repoDir("myws", "myrepo");
-      chmodSync(treesDir, 0o555);
+      await chmod(treesDir, 0o555);
 
       const result = await pruneWorktrees("myws", paths, GIT_ENV);
 
       // Restore perms before any assertions (so afterEach cleanup works)
-      chmodSync(treesDir, 0o755);
+      await chmod(treesDir, 0o755);
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -763,17 +741,12 @@ describe("worktree commands", () => {
       }
 
       // myrepo's symlink still exists (couldn't be removed)
-      expect(lstatSync(paths.worktreeDir("myws", "myrepo", "feature-perm")).isSymbolicLink()).toBe(
-        true,
-      );
+      expect(
+        (await lstat(paths.worktreeDir("myws", "myrepo", "feature-perm"))).isSymbolicLink(),
+      ).toBe(true);
 
       // myrepo2's symlink is gone
-      let myrepo2Gone = false;
-      try {
-        lstatSync(paths.worktreeDir("myws", "myrepo2", "feature-perm"));
-      } catch {
-        myrepo2Gone = true;
-      }
+      const myrepo2Gone = !(await exists(paths.worktreeDir("myws", "myrepo2", "feature-perm")));
       expect(myrepo2Gone).toBe(true);
     });
   });
@@ -813,8 +786,8 @@ describe("worktree commands", () => {
     });
 
     it("runs setup command from commands.json and captures result", async () => {
-      mkdirSync(join(repoPath, ".grove"), { recursive: true });
-      writeFileSync(
+      await mkdir(join(repoPath, ".grove"), { recursive: true });
+      await writeFile(
         join(repoPath, ".grove", "commands.json"),
         JSON.stringify({ setup: ["echo", "setup-ran"] }),
       );
@@ -836,8 +809,8 @@ describe("worktree commands", () => {
     });
 
     it("setup failure is non-fatal — worktree is still created", async () => {
-      mkdirSync(join(repoPath, ".grove"), { recursive: true });
-      writeFileSync(
+      await mkdir(join(repoPath, ".grove"), { recursive: true });
+      await writeFile(
         join(repoPath, ".grove", "commands.json"),
         JSON.stringify({ setup: ["false"] }),
       );
@@ -857,10 +830,10 @@ describe("worktree commands", () => {
         expect(result.value.setupResult?.exitCode).not.toBe(0);
       }
       // Pool entry and workspace symlink exist
-      expect(existsSync(paths.worktreePoolEntry("myrepo", "setup-fails"))).toBe(true);
-      expect(lstatSync(paths.worktreeDir("myws", "myrepo", "setup-fails")).isSymbolicLink()).toBe(
-        true,
-      );
+      expect(await exists(paths.worktreePoolEntry("myrepo", "setup-fails"))).toBe(true);
+      expect(
+        (await lstat(paths.worktreeDir("myws", "myrepo", "setup-fails"))).isSymbolicLink(),
+      ).toBe(true);
     });
   });
 });
