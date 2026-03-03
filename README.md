@@ -55,7 +55,7 @@ grove ws status
   "ok": true,
   "data": {
     "name": "myproject",
-    "path": "~/grove-workspaces/myproject",
+    "path": "<GROVE_ROOT>/myproject",
     "repos": [
       {
         "name": "my-api",
@@ -120,7 +120,7 @@ List commands output JSON by default. Pass `--porcelain` for stable, script-frie
 
 - **Claude Code plugin** — `.claude-plugin/` registers `/workspace`, `/workspace-status`, `/worktree`, `/repo` slash commands
 - **MCP server** — `grove mcp-server` exposes workspace operations over MCP for AI tool integration
-- **Auto-generated files** — adding/removing repos regenerates `CLAUDE.md`, `.claude/trees.md`, and `.code-workspace` to keep editor and agent configs in sync
+- **Auto-generated files** — adding/removing repos regenerates `CLAUDE.md`, `.claude/trees.md`, and `{workspace}.code-workspace` to keep editor and agent configs in sync
 
 ## Development
 
