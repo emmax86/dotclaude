@@ -1,17 +1,18 @@
 /**
  * Enforces a "zero sync in production" invariant.
  *
- * Scans all TypeScript files under src/ (excluding __tests__ directories)
- * and fails if any *Sync( call sites are found.
+ * Parses all TypeScript files under src/ (excluding __tests__ directories)
+ * using the TypeScript AST and fails if any CallExpression whose callee name
+ * ends with "Sync" is found. This correctly ignores comments, string literals,
+ * and multi-line call expressions.
  */
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
+import ts from "typescript";
 
-const ROOT = new URL("..", import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const SRC = join(ROOT, "src");
-
-// Matches any *Sync( call site — e.g. existsSync(, Bun.spawnSync(, realpathSync(
-const SYNC_CALL = /\b\w+Sync\s*\(/g;
 
 async function collectProductionFiles(dir: string): Promise<string[]> {
   const files: string[] = [];
@@ -29,28 +30,42 @@ async function collectProductionFiles(dir: string): Promise<string[]> {
   return files;
 }
 
+function findSyncCalls(filePath: string, content: string): { line: number; name: string }[] {
+  const sourceFile = ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest, true);
+
+  const violations: { line: number; name: string }[] = [];
+
+  function visit(node: ts.Node) {
+    if (ts.isCallExpression(node)) {
+      const callee = node.expression;
+      let name: string | undefined;
+
+      if (ts.isIdentifier(callee)) {
+        name = callee.text;
+      } else if (ts.isPropertyAccessExpression(callee)) {
+        name = callee.name.text;
+      }
+
+      if (name?.endsWith("Sync")) {
+        const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+        violations.push({ line: line + 1, name });
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+  return violations;
+}
+
 const files = await collectProductionFiles(SRC);
 let violations = 0;
 
 for (const file of files) {
   const content = await readFile(file, "utf-8");
-  const lines = content.split("\n");
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    // Skip pure comment lines
-    if (/^\s*(\/\/|\*|\/\*)/.test(line)) {
-      continue;
-    }
-    // Strip inline comments before matching to avoid false positives
-    // e.g. `await fn(); // previously used readFileSync(`
-    const codePart = line.replace(/\/\*.*?\*\//g, "").replace(/\/\/.*$/, "");
-    const matches = codePart.match(SYNC_CALL);
-    if (matches) {
-      for (const match of matches) {
-        console.error(`${relative(ROOT, file)}:${i + 1}: ${match}`);
-        violations++;
-      }
-    }
+  for (const { line, name } of findSyncCalls(file, content)) {
+    console.error(`${relative(ROOT, file)}:${line}: ${name}(`);
+    violations++;
   }
 }
 
