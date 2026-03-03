@@ -21,7 +21,14 @@ import {
   removeWorktree,
 } from "../../commands/worktree";
 import { createPaths } from "../../constants";
-import { cleanup, createTestDir, createTestGitRepo, entryGone, GIT_ENV, spawnProc } from "../helpers";
+import {
+  cleanup,
+  createTestDir,
+  createTestGitRepo,
+  entryGone,
+  GIT_ENV,
+  spawnProc,
+} from "../helpers";
 
 describe("worktree commands", () => {
   let tempDir: string;
