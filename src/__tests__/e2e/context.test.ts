@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { join } from "node:path";
+
 import { cleanupTempRoot, createGitRepo, createTempRoot, runCLI } from "./helpers";
 
 describe("E2E: context inference via cwd", () => {

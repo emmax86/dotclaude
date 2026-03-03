@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+
 import { cleanupTempRoot, createTempRoot, runCLI } from "./helpers";
 
 describe("E2E: deprecation warnings", () => {
