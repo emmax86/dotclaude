@@ -9,22 +9,6 @@ export async function createTestDir(): Promise<string> {
   return await realpath(tmp);
 }
 
-export async function spawnGit(
-  args: string[],
-  cwd: string,
-  env: Record<string, string>,
-): Promise<void> {
-  const proc = Bun.spawn(args, { cwd, env, stdout: "pipe", stderr: "pipe" });
-  const [, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
-  if (exitCode !== 0) {
-    throw new Error(`${args.join(" ")} failed: ${stderr}`);
-  }
-}
-
 export async function createTestGitRepo(
   dir: string,
   name: string,
@@ -43,7 +27,7 @@ export async function createTestGitRepo(
     GIT_COMMITTER_EMAIL: "test@test.com",
   };
 
-  const run = (args: string[]) => spawnGit(args, repoPath, env);
+  const run = (args: string[]) => spawnProc(args, repoPath, env);
 
   await run(["git", "init", "-b", defaultBranch]);
   await run(["git", "config", "user.email", "test@test.com"]);
@@ -75,3 +59,46 @@ export const GIT_ENV = {
   GIT_COMMITTER_NAME: "Test",
   GIT_COMMITTER_EMAIL: "test@test.com",
 };
+
+/** Spawn a process. Returns trimmed stdout. Throws on non-zero exit. */
+export async function spawnProc(
+  args: string[],
+  cwd: string | undefined,
+  env: Record<string, string | undefined>,
+): Promise<string> {
+  const proc = Bun.spawn(args, { cwd, env, stdout: "pipe", stderr: "pipe" });
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+  if (exitCode !== 0) {
+    throw new Error(`${args.join(" ")} failed: ${stderr}`);
+  }
+  return stdout.trim();
+}
+
+/**
+ * Create a minimal git repo with HEAD detached to the initial commit.
+ * Useful for testing paths where getDefaultBranch (symbolic-ref) fails.
+ */
+export async function createDetachedGitRepo(parentDir: string, name: string): Promise<string> {
+  const repoPath = join(parentDir, name);
+  await mkdir(repoPath, { recursive: true });
+  const env: Record<string, string> = {
+    PATH: process.env.PATH ?? "",
+    HOME: parentDir,
+    ...GIT_ENV,
+  };
+
+  await spawnProc(["git", "init", "-b", "main", repoPath], undefined, env);
+  await spawnProc(["git", "-C", repoPath, "config", "user.email", "test@test.com"], undefined, env);
+  await spawnProc(["git", "-C", repoPath, "config", "user.name", "Test"], undefined, env);
+  await Bun.write(join(repoPath, "README"), "x");
+  await spawnProc(["git", "-C", repoPath, "add", "."], undefined, env);
+  await spawnProc(["git", "-C", repoPath, "commit", "-m", "init"], undefined, env);
+  const sha = await spawnProc(["git", "-C", repoPath, "rev-parse", "HEAD"], undefined, env);
+  await Bun.write(join(repoPath, ".git", "HEAD"), `${sha}\n`);
+
+  return repoPath;
+}

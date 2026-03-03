@@ -13,7 +13,14 @@ import { addRepo, listRepos, removeRepo } from "../../commands/repo";
 import { addWorkspace } from "../../commands/workspace";
 import { addWorktree } from "../../commands/worktree";
 import { createPaths } from "../../constants";
-import { cleanup, createTestDir, createTestGitRepo, GIT_ENV } from "../helpers";
+import {
+  cleanup,
+  createDetachedGitRepo,
+  createTestDir,
+  createTestGitRepo,
+  GIT_ENV,
+  spawnProc,
+} from "../helpers";
 
 describe("repo commands", () => {
   let tempDir: string;
@@ -280,31 +287,7 @@ describe("repo commands", () => {
 
   it("addRepo rollback: cleans up repoDir and wsTreeEntry when getDefaultBranch fails", async () => {
     // Create a repo and put HEAD in detached state so symbolic-ref fails
-    const detachedRepoPath = join(tempDir, "detached-repo");
-    mkdirSync(detachedRepoPath, { recursive: true });
-    const env = {
-      ...process.env,
-      GIT_CONFIG_NOSYSTEM: "1",
-      HOME: tempDir,
-      GIT_AUTHOR_NAME: "Test",
-      GIT_AUTHOR_EMAIL: "test@test.com",
-      GIT_COMMITTER_NAME: "Test",
-      GIT_COMMITTER_EMAIL: "test@test.com",
-    };
-    Bun.spawnSync(["git", "init", "-b", "main", detachedRepoPath], { env });
-    Bun.spawnSync(["git", "-C", detachedRepoPath, "config", "user.email", "test@test.com"], {
-      env,
-    });
-    Bun.spawnSync(["git", "-C", detachedRepoPath, "config", "user.name", "Test"], { env });
-    writeFileSync(join(detachedRepoPath, "README"), "x");
-    Bun.spawnSync(["git", "-C", detachedRepoPath, "add", "."], { env });
-    Bun.spawnSync(["git", "-C", detachedRepoPath, "commit", "-m", "init"], {
-      env,
-    });
-    // Detach HEAD — symbolic-ref will now fail
-    const shaResult = Bun.spawnSync(["git", "-C", detachedRepoPath, "rev-parse", "HEAD"], { env });
-    const sha = new TextDecoder().decode(shaResult.stdout).trim();
-    writeFileSync(join(detachedRepoPath, ".git", "HEAD"), `${sha}\n`);
+    const detachedRepoPath = await createDetachedGitRepo(tempDir, "detached-repo");
 
     const result = await addRepo("myws", detachedRepoPath, undefined, paths, GIT_ENV);
     expect(result.ok).toBe(false);
@@ -402,9 +385,7 @@ describe("repo commands", () => {
     // Lock the worktree — git worktree remove --force on a locked worktree fails (requires -f -f).
     // This reliably produces a gitWarning even when force: true is used.
     const poolEntry = paths.worktreePoolEntry("myrepo", "feature-pool");
-    Bun.spawnSync(["git", "-C", repoPath, "worktree", "lock", poolEntry], {
-      env: GIT_ENV,
-    });
+    await spawnProc(["git", "-C", repoPath, "worktree", "lock", poolEntry], undefined, GIT_ENV);
 
     // removeRepo --force: git warns but repoDir and workspace.json must still be cleaned
     const result = await removeRepo("myws", "myrepo", { force: true }, paths, GIT_ENV);
