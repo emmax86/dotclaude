@@ -37,8 +37,9 @@ describe("E2E: worktree commands", () => {
     // Pool entry is a real directory
     const poolEntry = join(root, "worktrees", "myrepo", "feature-x");
     expect(await exists(poolEntry)).toBe(true);
-    expect((await lstat(poolEntry)).isDirectory()).toBe(true);
-    expect((await lstat(poolEntry)).isSymbolicLink()).toBe(false);
+    const poolEntryStats = await lstat(poolEntry);
+    expect(poolEntryStats.isDirectory()).toBe(true);
+    expect(poolEntryStats.isSymbolicLink()).toBe(false);
 
     // worktrees.json records the reference
     const pool = JSON.parse(await readFile(join(root, "worktrees.json"), "utf-8"));
