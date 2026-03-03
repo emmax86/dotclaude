@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { existsSync, lstatSync, readFileSync, readlinkSync, rmSync } from "node:fs";
 import { join } from "node:path";
+
 import { cleanupTempRoot, createGitRepo, createTempRoot, runCLI } from "./helpers";
 
 describe("E2E: worktree commands", () => {
