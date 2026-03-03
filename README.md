@@ -5,7 +5,7 @@ with auto-generated Claude Code and VS Code configuration.
 
 - Named workspaces under `~/grove-workspaces/` (configurable via `GROVE_ROOT`)
 - Register git repos, manage git worktrees in a shared pool across workspaces
-- Auto-generates `CLAUDE.md`, `.claude/trees.md`, and `.code-workspace` files
+- Auto-generates `CLAUDE.md`, `.claude/trees.md`, and `{workspace}.code-workspace` VS Code workspace files
 - Context inference — most commands detect workspace/repo from CWD
 
 ## Directory layout
@@ -41,7 +41,7 @@ grove ws repo add myproject ~/code/my-api
 grove ws repo add myproject ~/code/web-client
 
 cd ~/grove-workspaces/myproject   # worktree commands infer workspace from CWD
-grove ws worktree add my-api feat/auth --new
+grove ws worktree add my-api feat-auth --new
 grove ws status
 ```
 
@@ -55,7 +55,7 @@ grove ws status
   "ok": true,
   "data": {
     "name": "myproject",
-    "path": "/Users/emma/grove-workspaces/myproject",
+    "path": "~/grove-workspaces/myproject",
     "repos": [
       {
         "name": "my-api",
