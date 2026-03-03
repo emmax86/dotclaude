@@ -21,7 +21,7 @@ export async function spawnGit(
     proc.exited,
   ]);
   if (exitCode !== 0) {
-    throw new Error(`git ${args.join(" ")} failed: ${stderr}`);
+    throw new Error(`${args.join(" ")} failed: ${stderr}`);
   }
 }
 
@@ -33,10 +33,10 @@ export async function createTestGitRepo(
   const repoPath = join(dir, name);
   await mkdir(repoPath, { recursive: true });
 
-  const env = {
-    ...process.env,
-    GIT_CONFIG_NOSYSTEM: "1",
+  const env: Record<string, string> = {
+    PATH: process.env.PATH ?? "",
     HOME: dir,
+    GIT_CONFIG_NOSYSTEM: "1",
     GIT_AUTHOR_NAME: "Test",
     GIT_AUTHOR_EMAIL: "test@test.com",
     GIT_COMMITTER_NAME: "Test",
