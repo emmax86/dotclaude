@@ -1,14 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
+import { exists, mkdir, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { addRepo } from "../../commands/repo";
@@ -96,7 +87,7 @@ describe("workspace commands", () => {
   it("list skips non-directory entries", async () => {
     await addWorkspace("myws", paths);
     // Create a file (not a dir) in root
-    writeFileSync(join(paths.root, "notadir"), "file");
+    await writeFile(join(paths.root, "notadir"), "file");
     const result = await listWorkspaces(paths);
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -107,8 +98,8 @@ describe("workspace commands", () => {
 
   it("list skips reserved names", async () => {
     await addWorkspace("myws", paths);
-    mkdirSync(join(paths.root, "repos"), { recursive: true });
-    mkdirSync(join(paths.root, "worktrees"), { recursive: true });
+    await mkdir(join(paths.root, "repos"), { recursive: true });
+    await mkdir(join(paths.root, "worktrees"), { recursive: true });
     const result = await listWorkspaces(paths);
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -121,7 +112,7 @@ describe("workspace commands", () => {
   it("list skips directories without workspace.json", async () => {
     await addWorkspace("myws", paths);
     // Create a directory without workspace.json
-    mkdirSync(join(paths.root, "noconfig"), { recursive: true });
+    await mkdir(join(paths.root, "noconfig"), { recursive: true });
     const result = await listWorkspaces(paths);
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -167,7 +158,7 @@ describe("workspace commands", () => {
 
     const result = await removeWorkspace("myws", { force: true }, paths);
     expect(result.ok).toBe(true);
-    expect(existsSync(paths.workspace("myws"))).toBe(false);
+    expect(await exists(paths.workspace("myws"))).toBe(false);
   });
 
   it("remove --force cleans up pool worktrees", async () => {
@@ -177,13 +168,13 @@ describe("workspace commands", () => {
     await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
 
     const poolEntry = paths.worktreePoolEntry("myrepo", "feature-x");
-    expect(existsSync(poolEntry)).toBe(true);
+    expect(await exists(poolEntry)).toBe(true);
 
     const result = await removeWorkspace("myws", { force: true }, paths);
     expect(result.ok).toBe(true);
 
     // Pool entry removed since last reference
-    expect(existsSync(poolEntry)).toBe(false);
+    expect(await exists(poolEntry)).toBe(false);
   });
 
   it("remove --force with shared pool entry preserves pool for other workspace", async () => {
@@ -201,7 +192,7 @@ describe("workspace commands", () => {
     expect(result.ok).toBe(true);
 
     // Pool entry persists for otherws
-    expect(existsSync(poolEntry)).toBe(true);
+    expect(await exists(poolEntry)).toBe(true);
   });
 
   it("does clean metadata-only pool entries when removeWorkspace --force and symlink missing", async () => {
@@ -211,16 +202,16 @@ describe("workspace commands", () => {
     await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
 
     // Externally delete the workspace symlink — metadata entry remains in worktrees.json
-    rmSync(paths.worktreeDir("myws", "myrepo", "feature-x"), { force: true });
+    await rm(paths.worktreeDir("myws", "myrepo", "feature-x"), { force: true });
 
-    const before = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+    const before = JSON.parse(await readFile(paths.worktreePoolConfig, "utf-8"));
     expect(before.myrepo?.["feature-x"]).toContain("myws");
 
     const result = await removeWorkspace("myws", { force: true }, paths, GIT_ENV);
     expect(result.ok).toBe(true);
 
     // worktrees.json should be cleaned
-    const after = JSON.parse(readFileSync(paths.worktreePoolConfig, "utf-8"));
+    const after = JSON.parse(await readFile(paths.worktreePoolConfig, "utf-8"));
     expect(after.myrepo).toBeUndefined();
   });
 
@@ -238,19 +229,19 @@ describe("workspace commands", () => {
     // removeWorkspace --force: even if git reports a warning, workspace directory must be removed
     await removeWorkspace("myws", { force: true }, paths, GIT_ENV);
 
-    expect(existsSync(paths.workspace("myws"))).toBe(false);
+    expect(await exists(paths.workspace("myws"))).toBe(false);
   });
 
   it("add creates workspace.json, .code-workspace, and trees.md", async () => {
     await addWorkspace("myws", paths);
-    expect(existsSync(paths.workspaceConfig("myws"))).toBe(true);
-    expect(existsSync(paths.vscodeWorkspace("myws"))).toBe(true);
-    expect(existsSync(paths.claudeTreesMd("myws"))).toBe(true);
+    expect(await exists(paths.workspaceConfig("myws"))).toBe(true);
+    expect(await exists(paths.vscodeWorkspace("myws"))).toBe(true);
+    expect(await exists(paths.claudeTreesMd("myws"))).toBe(true);
   });
 
   it("add creates CLAUDE.md in .claude/", async () => {
     await addWorkspace("myws", paths);
-    expect(existsSync(paths.claudeMd("myws"))).toBe(true);
+    expect(await exists(paths.claudeMd("myws"))).toBe(true);
   });
 
   describe("syncWorkspace", () => {
@@ -276,7 +267,7 @@ describe("workspace commands", () => {
       await addWorkspace("myws", paths);
       await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
       // Remove the actual repo
-      rmSync(repoPath, { recursive: true, force: true });
+      await rm(repoPath, { recursive: true, force: true });
 
       const result = await syncWorkspace("myws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
@@ -292,12 +283,12 @@ describe("workspace commands", () => {
       await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
 
       // Break the repos/ symlink
-      rmSync(paths.repoEntry("myrepo"), { force: true });
-      expect(existsSync(paths.repoEntry("myrepo"))).toBe(false);
+      await rm(paths.repoEntry("myrepo"), { force: true });
+      expect(await exists(paths.repoEntry("myrepo"))).toBe(false);
 
       const result = await syncWorkspace("myws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
-      expect(existsSync(paths.repoEntry("myrepo"))).toBe(true);
+      expect(await exists(paths.repoEntry("myrepo"))).toBe(true);
 
       if (result.ok) {
         const repo = result.value.repos.find((r) => r.name === "myrepo");
@@ -312,11 +303,14 @@ describe("workspace commands", () => {
       await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
 
       // Remove the trees directory
-      rmSync(paths.repoDir("myws", "myrepo"), { recursive: true, force: true });
+      await rm(paths.repoDir("myws", "myrepo"), {
+        recursive: true,
+        force: true,
+      });
 
       const result = await syncWorkspace("myws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
-      expect(existsSync(paths.repoDir("myws", "myrepo"))).toBe(true);
+      expect(await exists(paths.repoDir("myws", "myrepo"))).toBe(true);
 
       if (result.ok) {
         const repo = result.value.repos.find((r) => r.name === "myrepo");
@@ -330,11 +324,11 @@ describe("workspace commands", () => {
       await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
 
       const slugPath = join(paths.repoDir("myws", "myrepo"), "main");
-      rmSync(slugPath, { force: true });
+      await rm(slugPath, { force: true });
 
       const result = await syncWorkspace("myws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
-      expect(existsSync(slugPath) || lstatSync(slugPath) !== null).toBeTruthy();
+      expect(await exists(slugPath)).toBe(true);
 
       if (result.ok) {
         const repo = result.value.repos.find((r) => r.name === "myrepo");
@@ -348,13 +342,13 @@ describe("workspace commands", () => {
       await addRepo("myws", repoPath, undefined, paths, GIT_ENV);
 
       // Replace repos/myrepo with a symlink to a non-existent path
-      rmSync(paths.repoEntry("myrepo"), { force: true });
-      symlinkSync("/nonexistent/path", paths.repoEntry("myrepo"));
+      await rm(paths.repoEntry("myrepo"), { force: true });
+      await symlink("/nonexistent/path", paths.repoEntry("myrepo"));
 
       const result = await syncWorkspace("myws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
       // Now the symlink should point to the actual repo
-      expect(realpathSync(paths.repoEntry("myrepo"))).toBe(realpathSync(repoPath));
+      expect(await realpath(paths.repoEntry("myrepo"))).toBe(await realpath(repoPath));
 
       if (result.ok) {
         const repo = result.value.repos.find((r) => r.name === "myrepo");
@@ -383,7 +377,7 @@ describe("workspace commands", () => {
       await addWorktree("myws", "myrepo", "feature/x", { newBranch: true }, paths, GIT_ENV);
 
       // Delete pool entry to make workspace symlink dangle
-      rmSync(paths.worktreePoolEntry("myrepo", "feature-x"), {
+      await rm(paths.worktreePoolEntry("myrepo", "feature-x"), {
         recursive: true,
         force: true,
       });

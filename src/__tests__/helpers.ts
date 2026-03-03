@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -39,6 +39,20 @@ export async function createTestGitRepo(
   await run(["git", "commit", "-m", "Initial commit"]);
 
   return repoPath;
+}
+
+/**
+ * Returns true if no filesystem entry exists at path.
+ * Uses lstat (not stat) so dangling symlinks count as present, not absent —
+ * preventing vacuous assertions when the symlink target was removed first.
+ */
+export async function entryGone(path: string): Promise<boolean> {
+  try {
+    await lstat(path);
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 export async function cleanup(...dirs: string[]): Promise<void> {
