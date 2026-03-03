@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { existsSync, lstatSync, readFileSync, readlinkSync, rmSync } from "node:fs";
+import { exists, lstat, readFile, readlink, rm } from "node:fs/promises";
 import { join } from "node:path";
 
 import { cleanupTempRoot, createGitRepo, createTempRoot, runCLI } from "./helpers";
@@ -31,17 +31,17 @@ describe("E2E: worktree commands", () => {
 
     // Workspace entry is a symlink
     const wsLink = join(root, "myws", "trees", "myrepo", "feature-x");
-    expect(lstatSync(wsLink).isSymbolicLink()).toBe(true);
-    expect(readlinkSync(wsLink)).toBe("../../../worktrees/myrepo/feature-x");
+    expect((await lstat(wsLink)).isSymbolicLink()).toBe(true);
+    expect(await readlink(wsLink)).toBe("../../../worktrees/myrepo/feature-x");
 
     // Pool entry is a real directory
     const poolEntry = join(root, "worktrees", "myrepo", "feature-x");
-    expect(existsSync(poolEntry)).toBe(true);
-    expect(lstatSync(poolEntry).isDirectory()).toBe(true);
-    expect(lstatSync(poolEntry).isSymbolicLink()).toBe(false);
+    expect(await exists(poolEntry)).toBe(true);
+    expect((await lstat(poolEntry)).isDirectory()).toBe(true);
+    expect((await lstat(poolEntry)).isSymbolicLink()).toBe(false);
 
     // worktrees.json records the reference
-    const pool = JSON.parse(readFileSync(join(root, "worktrees.json"), "utf-8"));
+    const pool = JSON.parse(await readFile(join(root, "worktrees.json"), "utf-8"));
     expect(pool.myrepo["feature-x"]).toContain("myws");
   });
 
@@ -105,10 +105,10 @@ describe("E2E: worktree commands", () => {
     expect(r.exitCode).toBe(0);
 
     // Symlink gone
-    expect(existsSync(join(root, "myws", "trees", "myrepo", "feature-x"))).toBe(false);
+    expect(await exists(join(root, "myws", "trees", "myrepo", "feature-x"))).toBe(false);
 
     // Pool entry gone (was last reference)
-    expect(existsSync(join(root, "worktrees", "myrepo", "feature-x"))).toBe(false);
+    expect(await exists(join(root, "worktrees", "myrepo", "feature-x"))).toBe(false);
   });
 
   it("ws worktree remove refuses default branch without --force", async () => {
@@ -140,7 +140,7 @@ describe("E2E: worktree commands", () => {
     });
 
     // Delete pool entry to make the workspace symlink dangle
-    rmSync(join(root, "worktrees", "myrepo", "feature-x"), {
+    await rm(join(root, "worktrees", "myrepo", "feature-x"), {
       recursive: true,
       force: true,
     });
@@ -158,7 +158,7 @@ describe("E2E: worktree commands", () => {
     expect(pruned[0].slug).toBe("feature-x");
 
     // Symlink should be gone
-    expect(existsSync(join(root, "myws", "trees", "myrepo", "feature-x"))).toBe(false);
+    expect(await exists(join(root, "myws", "trees", "myrepo", "feature-x"))).toBe(false);
   });
 
   it("pool sharing: two workspaces, same branch, one pool entry", async () => {
@@ -180,15 +180,15 @@ describe("E2E: worktree commands", () => {
     expect(r.exitCode).toBe(0);
 
     // Both symlinks point to same pool entry
-    expect(readlinkSync(join(root, "myws", "trees", "myrepo", "feature-shared"))).toBe(
+    expect(await readlink(join(root, "myws", "trees", "myrepo", "feature-shared"))).toBe(
       "../../../worktrees/myrepo/feature-shared",
     );
-    expect(readlinkSync(join(root, "otherws", "trees", "myrepo", "feature-shared"))).toBe(
+    expect(await readlink(join(root, "otherws", "trees", "myrepo", "feature-shared"))).toBe(
       "../../../worktrees/myrepo/feature-shared",
     );
 
     // worktrees.json lists both
-    const pool = JSON.parse(readFileSync(join(root, "worktrees.json"), "utf-8"));
+    const pool = JSON.parse(await readFile(join(root, "worktrees.json"), "utf-8"));
     expect(pool.myrepo["feature-shared"]).toContain("myws");
     expect(pool.myrepo["feature-shared"]).toContain("otherws");
 
@@ -197,14 +197,14 @@ describe("E2E: worktree commands", () => {
       root,
       cwd: join(root, "myws"),
     });
-    expect(existsSync(join(root, "worktrees", "myrepo", "feature-shared"))).toBe(true);
-    expect(existsSync(join(root, "myws", "trees", "myrepo", "feature-shared"))).toBe(false);
+    expect(await exists(join(root, "worktrees", "myrepo", "feature-shared"))).toBe(true);
+    expect(await exists(join(root, "myws", "trees", "myrepo", "feature-shared"))).toBe(false);
 
     // Remove from otherws — pool cleaned up
     await runCLI(["ws", "worktree", "remove", "myrepo", "feature-shared"], {
       root,
       cwd: join(root, "otherws"),
     });
-    expect(existsSync(join(root, "worktrees", "myrepo", "feature-shared"))).toBe(false);
+    expect(await exists(join(root, "worktrees", "myrepo", "feature-shared"))).toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { existsSync, lstatSync, readlinkSync } from "node:fs";
+import { exists, lstat, readlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { cleanupTempRoot, createGitRepo, createTempRoot, runCLI } from "./helpers";
@@ -28,17 +28,17 @@ describe("E2E: repo commands", () => {
 
   it("ws repo add creates global repos/ symlink and default branch symlink", async () => {
     await runCLI(["ws", "repo", "add", "myws", repoPath], { root });
-    expect(lstatSync(join(root, "repos", "myrepo")).isSymbolicLink()).toBe(true);
+    expect((await lstat(join(root, "repos", "myrepo"))).isSymbolicLink()).toBe(true);
     const defaultLink = join(root, "myws", "trees", "myrepo", "main");
-    expect(lstatSync(defaultLink).isSymbolicLink()).toBe(true);
-    expect(readlinkSync(defaultLink)).toBe("../../../repos/myrepo");
+    expect((await lstat(defaultLink)).isSymbolicLink()).toBe(true);
+    expect(await readlink(defaultLink)).toBe("../../../repos/myrepo");
   });
 
   it("ws repo add --name overrides derived name", async () => {
     const r = await runCLI(["ws", "repo", "add", "myws", repoPath, "--name", "custom"], { root });
     expect(r.exitCode).toBe(0);
     expect((r.json?.data as Record<string, string>).name).toBe("custom");
-    expect(existsSync(join(root, "repos", "custom"))).toBe(true);
+    expect(await exists(join(root, "repos", "custom"))).toBe(true);
   });
 
   it("ws repo add rejects reserved name 'trees'", async () => {
@@ -82,7 +82,7 @@ describe("E2E: repo commands", () => {
     });
     expect(r.exitCode).toBe(0);
     // Global symlink stays
-    expect(existsSync(join(root, "repos", "myrepo"))).toBe(true);
+    expect(await exists(join(root, "repos", "myrepo"))).toBe(true);
     // Not in list anymore
     const list = await runCLI(["ws", "repo", "list", "myws"], { root });
     const data = list.json?.data as Array<{ name: string }>;
