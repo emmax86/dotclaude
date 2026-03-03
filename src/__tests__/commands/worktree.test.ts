@@ -21,7 +21,7 @@ import {
   removeWorktree,
 } from "../../commands/worktree";
 import { createPaths } from "../../constants";
-import { cleanup, createTestDir, createTestGitRepo, GIT_ENV, spawnProc } from "../helpers";
+import { cleanup, createTestDir, createTestGitRepo, entryGone, GIT_ENV, spawnProc } from "../helpers";
 
 describe("worktree commands", () => {
   let tempDir: string;
@@ -312,8 +312,7 @@ describe("worktree commands", () => {
     }
 
     // Workspace symlink should have been rolled back
-    const symlinkGone = !(await exists(paths.worktreeDir("myws", "myrepo", "feature-pool-fail")));
-    expect(symlinkGone).toBe(true);
+    expect(await entryGone(paths.worktreeDir("myws", "myrepo", "feature-pool-fail"))).toBe(true);
 
     // Pool entry should have been rolled back
     expect(await exists(paths.worktreePoolEntry("myrepo", "feature-pool-fail"))).toBe(false);
@@ -407,13 +406,7 @@ describe("worktree commands", () => {
       }
 
       // Symlink file was removed — lstat throws ENOENT
-      let symlinkGone = false;
-      try {
-        await lstat(wtPath);
-      } catch {
-        symlinkGone = true;
-      }
-      expect(symlinkGone).toBe(true);
+      expect(await entryGone(wtPath)).toBe(true);
 
       // worktrees.json cleaned up
       const pool = JSON.parse(await readFile(paths.worktreePoolConfig, "utf-8"));
@@ -590,13 +583,7 @@ describe("worktree commands", () => {
       }
 
       // Symlink file was removed — lstat throws ENOENT
-      let symlinkGone = false;
-      try {
-        await lstat(wtPath);
-      } catch {
-        symlinkGone = true;
-      }
-      expect(symlinkGone).toBe(true);
+      expect(await entryGone(wtPath)).toBe(true);
     });
 
     it("does remove dangling symlink when worktrees.json does not exist", async () => {
@@ -619,13 +606,7 @@ describe("worktree commands", () => {
       }
 
       // Symlink file was removed — lstat throws ENOENT
-      let symlinkGone = false;
-      try {
-        await lstat(wtPath);
-      } catch {
-        symlinkGone = true;
-      }
-      expect(symlinkGone).toBe(true);
+      expect(await entryGone(wtPath)).toBe(true);
     });
 
     it("skips repo when trees/{repo}/ directory is missing", async () => {
@@ -681,13 +662,7 @@ describe("worktree commands", () => {
       }
 
       // Symlink was removed — use lstat to check the symlink file itself (not its target)
-      let symlinkGone = false;
-      try {
-        await lstat(wtPath);
-      } catch {
-        symlinkGone = true;
-      }
-      expect(symlinkGone).toBe(true);
+      expect(await entryGone(wtPath)).toBe(true);
     });
 
     it("does not prune linked symlinks when target exists", async () => {
@@ -765,8 +740,7 @@ describe("worktree commands", () => {
       ).toBe(true);
 
       // myrepo2's symlink is gone
-      const myrepo2Gone = !(await exists(paths.worktreeDir("myws", "myrepo2", "feature-perm")));
-      expect(myrepo2Gone).toBe(true);
+      expect(await entryGone(paths.worktreeDir("myws", "myrepo2", "feature-perm"))).toBe(true);
     });
   });
 

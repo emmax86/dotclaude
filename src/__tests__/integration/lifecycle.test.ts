@@ -8,7 +8,7 @@ import { addWorkspace, listWorkspaces } from "../../commands/workspace";
 import { addWorktree, listWorktrees, removeWorktree } from "../../commands/worktree";
 import { createPaths } from "../../constants";
 import { generateClaudeFiles } from "../../lib/claude";
-import { cleanup, createTestDir, createTestGitRepo, GIT_ENV } from "../helpers";
+import { cleanup, createTestDir, createTestGitRepo, entryGone, GIT_ENV } from "../helpers";
 
 describe("lifecycle integration", () => {
   let tempDir: string;
@@ -114,10 +114,9 @@ describe("lifecycle integration", () => {
     const result = await removeWorktree("myws", "myrepo", "feature-test", {}, paths, GIT_ENV);
     expect(result.ok).toBe(true);
 
-    // Workspace symlink removed
+    // Workspace symlink removed — lstat throws ENOENT when the symlink file itself is gone
     const wsEntry = paths.worktreeDir("myws", "myrepo", "feature-test");
-    const gone = !(await exists(wsEntry));
-    expect(gone).toBe(true);
+    expect(await entryGone(wsEntry)).toBe(true);
 
     // Pool entry removed (last reference)
     expect(await exists(paths.worktreePoolEntry("myrepo", "feature-test"))).toBe(false);
