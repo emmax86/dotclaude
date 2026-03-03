@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { existsSync } from "node:fs";
+import { exists } from "node:fs/promises";
 import { join } from "node:path";
 
 import { cleanupTempRoot, createGitRepo, createTempRoot, runCLI } from "./helpers";
@@ -19,7 +19,7 @@ describe("E2E: workspace commands", () => {
     const data = r.json?.data as Record<string, string>;
     expect(data.name).toBe("myws");
     expect(data.path).toBe(join(root, "myws"));
-    expect(existsSync(join(root, "myws"))).toBe(true);
+    expect(await exists(join(root, "myws"))).toBe(true);
   });
 
   it("ws add rejects reserved name 'repos'", async () => {
@@ -79,7 +79,7 @@ describe("E2E: workspace commands", () => {
     await runCLI(["ws", "add", "myws"], { root });
     const r = await runCLI(["ws", "remove", "myws"], { root });
     expect(r.exitCode).toBe(0);
-    expect(existsSync(join(root, "myws"))).toBe(false);
+    expect(await exists(join(root, "myws"))).toBe(false);
   });
 
   it("ws remove non-existent workspace exits 1", async () => {
