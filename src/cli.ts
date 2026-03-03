@@ -1,13 +1,13 @@
 #!/usr/bin/env bun
+import { execCommand, type StandardCommand } from "./commands/exec";
+import { addRepo, listRepos, removeRepo } from "./commands/repo";
+import { getStatus } from "./commands/status";
+import { addWorkspace, listWorkspaces, removeWorkspace, syncWorkspace } from "./commands/workspace";
+import { addWorktree, listWorktrees, pruneWorktrees, removeWorktree } from "./commands/worktree";
 import { createPaths, DEFAULT_WORKSPACES_ROOT } from "./constants";
 import { inferContext } from "./context";
-import { addWorkspace, listWorkspaces, removeWorkspace, syncWorkspace } from "./commands/workspace";
-import { addRepo, listRepos, removeRepo } from "./commands/repo";
-import { addWorktree, listWorktrees, removeWorktree, pruneWorktrees } from "./commands/worktree";
-import { getStatus } from "./commands/status";
-import { execCommand, type StandardCommand } from "./commands/exec";
-import { startDaemon, discoverDaemon } from "./lib/daemon";
-import { type Result, ok } from "./types";
+import { discoverDaemon, startDaemon } from "./lib/daemon";
+import { ok, type Result } from "./types";
 
 // ---- Output helpers ----
 
@@ -20,7 +20,7 @@ function output(result: Result<unknown>, porcelain: boolean, formatFn?: (val: un
     }
   } else {
     process.stderr.write(
-      JSON.stringify({ ok: false, error: result.error, code: result.code }) + "\n",
+      `${JSON.stringify({ ok: false, error: result.error, code: result.code })}\n`,
     );
     process.exit(1);
   }
@@ -135,7 +135,7 @@ async function main() {
     const workspaceName = resolveWorkspace(parsed, ctx.workspace);
     const portArg = flagValue(parsed, "port");
     const port = portArg !== undefined ? parseInt(portArg, 10) : 0;
-    if (portArg !== undefined && (isNaN(port) || port < 0 || port > 65535)) {
+    if (portArg !== undefined && (Number.isNaN(port) || port < 0 || port > 65535)) {
       console.error(`Invalid port: ${portArg}`);
       process.exit(1);
     }
@@ -195,18 +195,22 @@ async function main() {
 
     if (!result.ok) {
       process.stderr.write(
-        JSON.stringify({ ok: false, error: result.error, code: result.code }) + "\n",
+        `${JSON.stringify({ ok: false, error: result.error, code: result.code })}\n`,
       );
       process.exit(1);
     }
 
     const { exitCode, stdout, stderr, command: cmd2, repo, cwd } = result.value;
     if (flag(parsed, "dry-run")) {
-      process.stdout.write(JSON.stringify({ repo, cwd, command: cmd2 }) + "\n");
+      process.stdout.write(`${JSON.stringify({ repo, cwd, command: cmd2 })}\n`);
       process.exit(0);
     }
-    if (stdout) process.stdout.write(stdout);
-    if (stderr) process.stderr.write(stderr);
+    if (stdout) {
+      process.stdout.write(stdout);
+    }
+    if (stderr) {
+      process.stderr.write(stderr);
+    }
     process.exit(exitCode);
   }
 
@@ -430,7 +434,7 @@ async function main() {
       }
       output(ok({ path: paths.workspace(workspace) }), porcelain, (val) => {
         const { path } = val as { path: string };
-        return path + "\n";
+        return `${path}\n`;
       });
       break;
     }

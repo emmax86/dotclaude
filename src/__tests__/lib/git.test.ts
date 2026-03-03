@@ -1,15 +1,15 @@
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
-import { join } from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "../helpers";
+import { join } from "node:path";
 import {
-  isGitRepo,
-  getDefaultBranch,
   addWorktree,
-  removeWorktree,
-  listWorktrees,
   findMainWorktreePath,
+  getDefaultBranch,
+  isGitRepo,
+  listWorktrees,
+  removeWorktree,
 } from "../../lib/git";
+import { cleanup, createTestDir, createTestGitRepo, GIT_ENV } from "../helpers";
 
 describe("git lib", () => {
   let tempDir: string;

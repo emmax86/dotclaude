@@ -1,6 +1,6 @@
-import { type Paths } from "../constants";
-import { type Result, ok, err, type WorktreeEntry } from "../types";
+import type { Paths } from "../constants";
 import { readConfig } from "../lib/config";
+import { err, ok, type Result, type WorktreeEntry } from "../types";
 import { listRepos, type RepoInfo } from "./repo";
 import { listWorktrees } from "./worktree";
 
@@ -25,7 +25,9 @@ export async function getStatus(workspace: string, paths: Paths): Promise<Result
   }
 
   const reposResult = await listRepos(workspace, paths);
-  if (!reposResult.ok) return reposResult;
+  if (!reposResult.ok) {
+    return reposResult;
+  }
 
   const repoStatuses: RepoStatus[] = [];
 

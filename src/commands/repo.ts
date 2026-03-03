@@ -1,14 +1,18 @@
 import { exists, mkdir, readdir, realpath, rm, symlink } from "node:fs/promises";
 import { basename, dirname, relative, resolve } from "node:path";
-import { type Paths } from "../constants";
-import { type Result, ok, err, type RepoEntry } from "../types";
-import { readConfig, addRepoToConfig, removeRepoFromConfig } from "../lib/config";
-import { generateVSCodeWorkspace } from "../lib/vscode";
+import type { Paths } from "../constants";
 import { generateClaudeFiles } from "../lib/claude";
-import { isGitRepo, getDefaultBranch, removeWorktree, type GitEnv } from "../lib/git";
-import { classifyWorktreeEntry, resolveRepoPath, removePoolWorktree } from "../lib/worktree-utils";
-import { getPoolSlugsForWorkspace } from "../lib/config";
+import {
+  addRepoToConfig,
+  getPoolSlugsForWorkspace,
+  readConfig,
+  removeRepoFromConfig,
+} from "../lib/config";
+import { type GitEnv, getDefaultBranch, isGitRepo, removeWorktree } from "../lib/git";
 import { toSlug } from "../lib/slug";
+import { generateVSCodeWorkspace } from "../lib/vscode";
+import { classifyWorktreeEntry, removePoolWorktree, resolveRepoPath } from "../lib/worktree-utils";
+import { err, ok, type RepoEntry, type Result } from "../types";
 
 export interface RepoInfo extends RepoEntry {
   status: "ok" | "dangling";
@@ -108,10 +112,14 @@ export async function addRepo(
   }
 
   const vscodeResult = await generateVSCodeWorkspace(workspace, paths);
-  if (!vscodeResult.ok) return vscodeResult;
+  if (!vscodeResult.ok) {
+    return vscodeResult;
+  }
 
   const claudeResult = await generateClaudeFiles(workspace, paths, env);
-  if (!claudeResult.ok) return claudeResult;
+  if (!claudeResult.ok) {
+    return claudeResult;
+  }
 
   return ok({ name, path: absPath, status: "ok" });
 }
@@ -230,13 +238,19 @@ export async function removeRepo(
 
   // Remove from workspace.json (global repo entry stays)
   const removeResult = await removeRepoFromConfig(paths.workspaceConfig(workspace), name);
-  if (!removeResult.ok) return removeResult;
+  if (!removeResult.ok) {
+    return removeResult;
+  }
 
   const vscodeResult = await generateVSCodeWorkspace(workspace, paths);
-  if (!vscodeResult.ok) return vscodeResult;
+  if (!vscodeResult.ok) {
+    return vscodeResult;
+  }
 
   const claudeResult = await generateClaudeFiles(workspace, paths, env);
-  if (!claudeResult.ok) return claudeResult;
+  if (!claudeResult.ok) {
+    return claudeResult;
+  }
 
   if (forceErrors.length > 0) {
     return err(

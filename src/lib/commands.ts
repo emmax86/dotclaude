@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { REPO_COMMANDS_CONFIG } from "../constants";
-import { type Ecosystem } from "./detect";
+import type { Ecosystem } from "./detect";
 
 export type StandardCommand = "setup" | "format" | "test" | "test:file" | "test:match" | "check";
 
@@ -81,20 +81,30 @@ export function resolveCommand(
     }
   } else if (ecosystem) {
     // Auto-detect from ecosystem
-    if (command === "setup") cmd = ecosystem.setup.slice();
-    else if (command === "format") cmd = ecosystem.format.slice();
-    else if (command === "test") cmd = ecosystem.test.slice();
+    if (command === "setup") {
+      cmd = ecosystem.setup.slice();
+    } else if (command === "format") {
+      cmd = ecosystem.format.slice();
+    } else if (command === "test") {
+      cmd = ecosystem.test.slice();
+    }
     // test:file, test:match, check are not auto-detected
   }
 
-  if (!cmd) return null;
+  if (!cmd) {
+    return null;
+  }
 
   // Substitute {file} and {match} placeholders — each replaces exactly one array element.
   // Unsubstituted placeholders (opts.file/opts.match not provided) are removed from the array
   // so commands like `prettier --write {file}` degrade gracefully to `prettier --write`.
   return cmd.flatMap((arg) => {
-    if (arg === "{file}") return opts.file !== undefined ? [opts.file] : [];
-    if (arg === "{match}") return opts.match !== undefined ? [opts.match] : [];
+    if (arg === "{file}") {
+      return opts.file !== undefined ? [opts.file] : [];
+    }
+    if (arg === "{match}") {
+      return opts.match !== undefined ? [opts.match] : [];
+    }
     return [arg];
   });
 }

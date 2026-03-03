@@ -1,12 +1,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { type Paths } from "./constants";
-import { getStatus } from "./commands/status";
-import { listRepos } from "./commands/repo";
-import { listWorktrees, addWorktree, removeWorktree } from "./commands/worktree";
-import { syncWorkspace } from "./commands/workspace";
 import { execCommand } from "./commands/exec";
-import { type AsyncMutex } from "./lib/mutex";
+import { listRepos } from "./commands/repo";
+import { getStatus } from "./commands/status";
+import { syncWorkspace } from "./commands/workspace";
+import { addWorktree, listWorktrees, removeWorktree } from "./commands/worktree";
+import type { Paths } from "./constants";
+import type { AsyncMutex } from "./lib/mutex";
 
 interface McpServerOptions {
   writeLock?: AsyncMutex;
@@ -36,12 +36,13 @@ export function createMcpServer(
     { description: "Current workspace state (name, repo count, worktree count)" },
     async () => {
       const result = await getStatus(workspace, paths);
-      if (!result.ok)
+      if (!result.ok) {
         return {
           contents: [
             { uri: "grove://workspace/status", text: JSON.stringify({ error: result.error }) },
           ],
         };
+      }
       const { name, repos } = result.value;
       const worktreeCount = repos.reduce((sum, r) => sum + r.worktrees.length, 0);
       const data = { name, repoCount: repos.length, worktreeCount };
@@ -70,7 +71,9 @@ export function createMcpServer(
       const all = [];
       for (const repo of repos) {
         const wtResult = await listWorktrees(workspace, repo.name, paths);
-        if (wtResult.ok) all.push(...wtResult.value);
+        if (wtResult.ok) {
+          all.push(...wtResult.value);
+        }
       }
       return { contents: [{ uri: "grove://workspace/worktrees", text: JSON.stringify(all) }] };
     },
@@ -94,7 +97,9 @@ export function createMcpServer(
     { description: "Get current workspace state" },
     async () => {
       const result = await getStatus(workspace, paths);
-      if (!result.ok) return toErrorContent(result.error);
+      if (!result.ok) {
+        return toErrorContent(result.error);
+      }
       return toJsonContent(result.value);
     },
   );
@@ -113,7 +118,9 @@ export function createMcpServer(
     async () => {
       const run = async () => syncWorkspace(workspace, paths);
       const result = await (writeLock ? writeLock.run(run) : run());
-      if (!result.ok) return toErrorContent(result.error);
+      if (!result.ok) {
+        return toErrorContent(result.error);
+      }
       return toJsonContent(result.value);
     },
   );
@@ -134,7 +141,9 @@ export function createMcpServer(
       const run = async () =>
         addWorktree(workspace, repo, branch, { newBranch, from, noSetup }, paths);
       const result = await (writeLock ? writeLock.run(run) : run());
-      if (!result.ok) return toErrorContent(result.error);
+      if (!result.ok) {
+        return toErrorContent(result.error);
+      }
       return toJsonContent(result.value);
     },
   );
@@ -152,7 +161,9 @@ export function createMcpServer(
     async ({ repo, slug, force }) => {
       const run = async () => removeWorktree(workspace, repo, slug, { force }, paths);
       const result = await (writeLock ? writeLock.run(run) : run());
-      if (!result.ok) return toErrorContent(result.error);
+      if (!result.ok) {
+        return toErrorContent(result.error);
+      }
       return toJsonContent({ ok: true });
     },
   );
@@ -174,7 +185,9 @@ export function createMcpServer(
     },
     async ({ command, repo, file, match, dryRun }) => {
       const result = await execCommand(workspace, command, { repo, file, match, dryRun }, paths);
-      if (!result.ok) return toErrorContent(`${result.error} [${result.code}]`);
+      if (!result.ok) {
+        return toErrorContent(`${result.error} [${result.code}]`);
+      }
       return toJsonContent(result.value);
     },
   );

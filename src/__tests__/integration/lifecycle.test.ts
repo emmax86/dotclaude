@@ -1,12 +1,12 @@
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
-import { join } from "node:path";
-import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "../helpers";
-import { createPaths } from "../../constants";
-import { addWorkspace, listWorkspaces } from "../../commands/workspace";
-import { addRepo, listRepos } from "../../commands/repo";
-import { addWorktree, listWorktrees, removeWorktree } from "../../commands/worktree";
-import { getStatus } from "../../commands/status";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { existsSync, lstatSync, readlinkSync, realpathSync } from "node:fs";
+import { join } from "node:path";
+import { addRepo, listRepos } from "../../commands/repo";
+import { getStatus } from "../../commands/status";
+import { addWorkspace, listWorkspaces } from "../../commands/workspace";
+import { addWorktree, listWorktrees, removeWorktree } from "../../commands/worktree";
+import { createPaths } from "../../constants";
+import { cleanup, createTestDir, createTestGitRepo, GIT_ENV } from "../helpers";
 
 describe("lifecycle integration", () => {
   let tempDir: string;

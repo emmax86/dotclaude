@@ -5,21 +5,21 @@
   "scripts": {
     "test": "bun test",
     "build": "mkdir -p .bin && rm -f .bin/grove && bun build --compile src/cli.ts --outfile .bin/grove",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "format": "biome check --write .",
+    "format:check": "biome check .",
     "typecheck": "tsc --noEmit",
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{ts,json,md}": "prettier --write"
+    "*": "biome check --write --no-errors-on-unmatched --files-ignore-unknown=true"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.5",
     "@commitlint/cli": "^20.4.2",
     "@commitlint/config-conventional": "^20.4.2",
     "@types/bun": "latest",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
-    "prettier": "^3.8.1",
     "typescript": "^5.9.0"
   },
   "dependencies": {

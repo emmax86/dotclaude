@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
-import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 export function createTestDir(): string {
   // realpathSync resolves macOS /var -> /private/var symlink so paths match git output

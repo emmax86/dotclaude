@@ -1,17 +1,17 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
-import { createTestDir, cleanup } from "../helpers";
+import { join } from "node:path";
 import {
-  readConfig,
-  writeConfig,
-  addRepoToConfig,
-  removeRepoFromConfig,
-  readPoolConfig,
-  writePoolConfig,
   addPoolReference,
+  addRepoToConfig,
   getPoolSlugsForWorkspace,
+  readConfig,
+  readPoolConfig,
+  removeRepoFromConfig,
+  writeConfig,
+  writePoolConfig,
 } from "../../lib/config";
+import { cleanup, createTestDir } from "../helpers";
 
 describe("config", () => {
   let tempDir: string;
