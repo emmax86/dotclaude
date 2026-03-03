@@ -1,12 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { rmSync } from "node:fs";
-import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "../helpers";
-import { createPaths } from "../../constants";
-import { addWorkspace } from "../../commands/workspace";
+import { join } from "node:path";
 import { addRepo } from "../../commands/repo";
-import { addWorktree } from "../../commands/worktree";
 import { getStatus } from "../../commands/status";
+import { addWorkspace } from "../../commands/workspace";
+import { addWorktree } from "../../commands/worktree";
+import { createPaths } from "../../constants";
+import { cleanup, createTestDir, createTestGitRepo, GIT_ENV } from "../helpers";
 
 describe("status command", () => {
   let tempDir: string;

@@ -10,16 +10,15 @@ import {
   unlink,
 } from "node:fs/promises";
 import { dirname, relative } from "node:path";
-import { type Paths } from "../constants";
-import { type Result, ok, err, type WorkspaceConfig } from "../types";
-import { writeConfig, readConfig } from "../lib/config";
-import { generateVSCodeWorkspace } from "../lib/vscode";
+import type { Paths } from "../constants";
 import { generateClaudeFiles } from "../lib/claude";
-import { isGitRepo, getDefaultBranch, removeWorktree, type GitEnv } from "../lib/git";
+import { getPoolSlugsForWorkspace, readConfig, writeConfig } from "../lib/config";
+import { type GitEnv, getDefaultBranch, isGitRepo, removeWorktree } from "../lib/git";
 import { toSlug } from "../lib/slug";
-import { classifyWorktreeEntry, resolveRepoPath, removePoolWorktree } from "../lib/worktree-utils";
-import { getPoolSlugsForWorkspace } from "../lib/config";
-import { pruneWorktrees, type PruneEntry } from "./worktree";
+import { generateVSCodeWorkspace } from "../lib/vscode";
+import { classifyWorktreeEntry, removePoolWorktree, resolveRepoPath } from "../lib/worktree-utils";
+import { err, ok, type Result, type WorkspaceConfig } from "../types";
+import { type PruneEntry, pruneWorktrees } from "./worktree";
 
 const RESERVED_NAMES = new Set(["repos", "worktrees"]);
 
@@ -43,7 +42,9 @@ export interface WorkspaceInfo {
 
 export async function addWorkspace(name: string, paths: Paths): Promise<Result<WorkspaceInfo>> {
   const validation = validateName(name);
-  if (!validation.ok) return validation;
+  if (!validation.ok) {
+    return validation;
+  }
 
   const wsPath = paths.workspace(name);
   if (await exists(wsPath)) {
@@ -55,13 +56,19 @@ export async function addWorkspace(name: string, paths: Paths): Promise<Result<W
 
   const config: WorkspaceConfig = { name, repos: [] };
   const writeResult = await writeConfig(paths.workspaceConfig(name), config);
-  if (!writeResult.ok) return writeResult;
+  if (!writeResult.ok) {
+    return writeResult;
+  }
 
   const vscodeResult = await generateVSCodeWorkspace(name, paths);
-  if (!vscodeResult.ok) return vscodeResult;
+  if (!vscodeResult.ok) {
+    return vscodeResult;
+  }
 
   const claudeResult = await generateClaudeFiles(name, paths);
-  if (!claudeResult.ok) return claudeResult;
+  if (!claudeResult.ok) {
+    return claudeResult;
+  }
 
   return ok({ name, path: wsPath });
 }
@@ -75,16 +82,22 @@ export async function listWorkspaces(paths: Paths): Promise<Result<WorkspaceInfo
   const workspaces: WorkspaceInfo[] = [];
 
   for (const entry of entries) {
-    if (RESERVED_NAMES.has(entry)) continue;
+    if (RESERVED_NAMES.has(entry)) {
+      continue;
+    }
     const wsPath = paths.workspace(entry);
     try {
       const s = await stat(wsPath);
-      if (!s.isDirectory()) continue;
+      if (!s.isDirectory()) {
+        continue;
+      }
     } catch {
       continue;
     }
     const configPath = paths.workspaceConfig(entry);
-    if (!(await exists(configPath))) continue;
+    if (!(await exists(configPath))) {
+      continue;
+    }
     workspaces.push({ name: entry, path: wsPath });
   }
 
@@ -122,7 +135,9 @@ export async function removeWorkspace(
   if (options.force && config.repos.length > 0) {
     for (const repo of config.repos) {
       const repoDir = paths.repoDir(name, repo.name);
-      if (!(await exists(repoDir))) continue;
+      if (!(await exists(repoDir))) {
+        continue;
+      }
 
       let entries: string[];
       try {
@@ -136,7 +151,9 @@ export async function removeWorkspace(
       for (const slug of entries) {
         const wtPath = paths.worktreeDir(name, repo.name, slug);
         const kind = await classifyWorktreeEntry(wtPath, paths);
-        if (kind === "pool") poolSlugsSet.add(slug);
+        if (kind === "pool") {
+          poolSlugsSet.add(slug);
+        }
       }
       // Union with worktrees.json to catch metadata-only entries (symlink externally deleted)
       const jsonSlugsResult = await getPoolSlugsForWorkspace(
@@ -145,7 +162,9 @@ export async function removeWorkspace(
         name,
       );
       if (jsonSlugsResult.ok) {
-        for (const slug of jsonSlugsResult.value) poolSlugsSet.add(slug);
+        for (const slug of jsonSlugsResult.value) {
+          poolSlugsSet.add(slug);
+        }
       }
 
       for (const slug of poolSlugsSet) {
@@ -169,7 +188,9 @@ export async function removeWorkspace(
         const kind = await classifyWorktreeEntry(wtPath, paths);
         if (kind === "legacy") {
           const repoPathResult = await resolveRepoPath(repo.name, paths);
-          if (!repoPathResult.ok) continue; // dangling — skip
+          if (!repoPathResult.ok) {
+            continue; // dangling — skip
+          }
           const removeResult = await removeWorktree(repoPathResult.value, wtPath, true, env);
           if (!removeResult.ok) {
             errors.push(`${repo.name}/${slug}: ${removeResult.error}`);
@@ -212,7 +233,9 @@ export async function syncWorkspace(
   }
 
   const configResult = await readConfig(paths.workspaceConfig(name));
-  if (!configResult.ok) return configResult;
+  if (!configResult.ok) {
+    return configResult;
+  }
 
   const config = configResult.value;
   const repoResults: SyncRepoResult[] = [];
@@ -286,10 +309,14 @@ export async function syncWorkspace(
   }
 
   const vscodeResult = await generateVSCodeWorkspace(name, paths);
-  if (!vscodeResult.ok) return vscodeResult;
+  if (!vscodeResult.ok) {
+    return vscodeResult;
+  }
 
   const claudeResult = await generateClaudeFiles(name, paths, env);
-  if (!claudeResult.ok) return claudeResult;
+  if (!claudeResult.ok) {
+    return claudeResult;
+  }
 
   const pruneResult = await pruneWorktrees(name, paths, env);
   const pruned = pruneResult.ok ? pruneResult.value.pruned : [];

@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
-import { join, relative, resolve } from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "../helpers";
-import { createPaths } from "../../constants";
-import { addWorkspace } from "../../commands/workspace";
-import { addRepo } from "../../commands/repo";
+import { join, relative, resolve } from "node:path";
 import { execCommand } from "../../commands/exec";
+import { addRepo } from "../../commands/repo";
+import { addWorkspace } from "../../commands/workspace";
+import { createPaths } from "../../constants";
+import { cleanup, createTestDir, createTestGitRepo, GIT_ENV } from "../helpers";
 
 describe("execCommand", () => {
   let tempDir: string;
@@ -27,26 +27,34 @@ describe("execCommand", () => {
   it("returns REPO_NOT_RESOLVED when neither repo nor file is specified", async () => {
     const result = await execCommand("ws", "test", {}, paths);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.code).toBe("REPO_NOT_RESOLVED");
+    if (!result.ok) {
+      expect(result.code).toBe("REPO_NOT_RESOLVED");
+    }
   });
 
   it("returns WORKSPACE_NOT_FOUND for unknown workspace", async () => {
     const result = await execCommand("ghost", "setup", {}, paths);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.code).toBe("WORKSPACE_NOT_FOUND");
+    if (!result.ok) {
+      expect(result.code).toBe("WORKSPACE_NOT_FOUND");
+    }
   });
 
   it("returns REPO_NOT_FOUND when repo specified but not registered", async () => {
     const result = await execCommand("ws", "setup", { repo: "ghost" }, paths);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.code).toBe("REPO_NOT_FOUND");
+    if (!result.ok) {
+      expect(result.code).toBe("REPO_NOT_FOUND");
+    }
   });
 
   it("returns COMMAND_NOT_CONFIGURED when command not available", async () => {
     // No ecosystem signal file + no config — check is never auto-detected
     const result = await execCommand("ws", "check", { repo: "myrepo" }, paths);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.code).toBe("COMMAND_NOT_CONFIGURED");
+    if (!result.ok) {
+      expect(result.code).toBe("COMMAND_NOT_CONFIGURED");
+    }
   });
 
   it("dry-run returns resolved command without running it", async () => {

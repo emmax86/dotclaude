@@ -1,13 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { join } from "node:path";
-import { mkdirSync } from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "./helpers";
-import { createPaths } from "../constants";
-import { addWorkspace } from "../commands/workspace";
 import { addRepo } from "../commands/repo";
+import { addWorkspace } from "../commands/workspace";
+import { createPaths } from "../constants";
 import { createMcpServer } from "../mcp-server";
+import { cleanup, createTestDir, createTestGitRepo, GIT_ENV } from "./helpers";
 
 describe("MCP server", () => {
   let tempDir: string;

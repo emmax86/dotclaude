@@ -1,12 +1,12 @@
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
-import { join } from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { existsSync, mkdirSync, symlinkSync } from "node:fs";
-import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "./helpers";
-import { createPaths } from "../constants";
-import { addWorkspace } from "../commands/workspace";
+import { join } from "node:path";
 import { addRepo } from "../commands/repo";
+import { addWorkspace } from "../commands/workspace";
 import { addWorktree } from "../commands/worktree";
+import { createPaths } from "../constants";
 import { inferContext, resolveRepoFromFile } from "../context";
+import { cleanup, createTestDir, createTestGitRepo, GIT_ENV } from "./helpers";
 
 describe("context inference", () => {
   let tempDir: string;
@@ -148,7 +148,9 @@ describe("resolveRepoFromFile", () => {
   it("returns REPO_NOT_RESOLVED for non-existent file", async () => {
     const result = await resolveRepoFromFile("/nonexistent/file.ts", "myws", paths);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.code).toBe("REPO_NOT_RESOLVED");
+    if (!result.ok) {
+      expect(result.code).toBe("REPO_NOT_RESOLVED");
+    }
   });
 
   it("resolves file inside pool worktree to correct repo", async () => {
@@ -176,7 +178,9 @@ describe("resolveRepoFromFile", () => {
     const symlinkedPath = join(paths.worktreeDir("myws", "myrepo", "feat-resolve"), "README.md");
     const result = await resolveRepoFromFile(symlinkedPath, "myws", paths);
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value.repo).toBe("myrepo");
+    if (result.ok) {
+      expect(result.value.repo).toBe("myrepo");
+    }
   });
 
   it("returns REPO_NOT_RESOLVED for file outside any registered repo", async () => {
@@ -185,6 +189,8 @@ describe("resolveRepoFromFile", () => {
     await Bun.write(filePath, "");
     const result = await resolveRepoFromFile(filePath, "myws", paths);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.code).toBe("REPO_NOT_RESOLVED");
+    if (!result.ok) {
+      expect(result.code).toBe("REPO_NOT_RESOLVED");
+    }
   });
 });

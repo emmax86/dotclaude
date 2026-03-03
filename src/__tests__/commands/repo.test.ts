@@ -1,21 +1,19 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { dirname, join, relative } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
-  chmodSync,
   existsSync,
   lstatSync,
   mkdirSync,
   readFileSync,
   readlinkSync,
   rmSync,
-  symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "../helpers";
-import { createPaths } from "../../constants";
-import { addWorkspace } from "../../commands/workspace";
+import { join } from "node:path";
 import { addRepo, listRepos, removeRepo } from "../../commands/repo";
+import { addWorkspace } from "../../commands/workspace";
 import { addWorktree } from "../../commands/worktree";
+import { createPaths } from "../../constants";
+import { cleanup, createTestDir, createTestGitRepo, GIT_ENV } from "../helpers";
 
 describe("repo commands", () => {
   let tempDir: string;
@@ -301,7 +299,7 @@ describe("repo commands", () => {
     // Detach HEAD — symbolic-ref will now fail
     const shaResult = Bun.spawnSync(["git", "-C", detachedRepoPath, "rev-parse", "HEAD"], { env });
     const sha = new TextDecoder().decode(shaResult.stdout).trim();
-    writeFileSync(join(detachedRepoPath, ".git", "HEAD"), sha + "\n");
+    writeFileSync(join(detachedRepoPath, ".git", "HEAD"), `${sha}\n`);
 
     const result = await addRepo("myws", detachedRepoPath, undefined, paths, GIT_ENV);
     expect(result.ok).toBe(false);

@@ -1,5 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { dirname, join, relative } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
   existsSync,
   lstatSync,
@@ -10,16 +9,17 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "../helpers";
-import { createPaths } from "../../constants";
+import { join } from "node:path";
+import { addRepo } from "../../commands/repo";
 import {
   addWorkspace,
   listWorkspaces,
   removeWorkspace,
   syncWorkspace,
 } from "../../commands/workspace";
-import { addRepo } from "../../commands/repo";
 import { addWorktree } from "../../commands/worktree";
+import { createPaths } from "../../constants";
+import { cleanup, createTestDir, createTestGitRepo, GIT_ENV } from "../helpers";
 
 describe("workspace commands", () => {
   let tempDir: string;

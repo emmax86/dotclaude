@@ -1,6 +1,5 @@
 import { exists } from "node:fs/promises";
-import { join } from "node:path";
-import { type Result, ok, err } from "../types";
+import { err, ok, type Result } from "../types";
 
 export interface GitEnv {
   GIT_CONFIG_NOSYSTEM?: string;
@@ -30,7 +29,9 @@ function spawnGit(
 }
 
 export async function isGitRepo(path: string): Promise<boolean> {
-  if (!(await exists(path))) return false;
+  if (!(await exists(path))) {
+    return false;
+  }
   const result = spawnGit(["rev-parse", "--git-dir"], path);
   return result.success;
 }
@@ -80,7 +81,9 @@ export async function removeWorktree(
   env?: GitEnv,
 ): Promise<Result<void>> {
   const args = ["worktree", "remove"];
-  if (force) args.push("--force");
+  if (force) {
+    args.push("--force");
+  }
   args.push(worktreePath);
 
   const result = spawnGit(args, repoPath, env);
@@ -116,13 +119,17 @@ export async function listWorktrees(
   const blocks = result.stdout.split("\n\n");
 
   for (const block of blocks) {
-    if (!block.trim()) continue;
+    if (!block.trim()) {
+      continue;
+    }
     const lines = block.split("\n");
     const pathLine = lines.find((l) => l.startsWith("worktree "));
     const branchLine = lines.find((l) => l.startsWith("branch "));
     const detachedLine = lines.find((l) => l === "detached");
 
-    if (!pathLine) continue;
+    if (!pathLine) {
+      continue;
+    }
     const path = pathLine.slice("worktree ".length);
     const branch = branchLine ? branchLine.slice("branch refs/heads/".length) : "";
     const isDetached = !!detachedLine;
@@ -138,7 +145,9 @@ export async function findMainWorktreePath(
   env?: GitEnv,
 ): Promise<Result<string>> {
   const result = await listWorktrees(repoPath, env);
-  if (!result.ok) return result;
+  if (!result.ok) {
+    return result;
+  }
   // The first worktree in the list is always the main one
   if (result.value.length === 0) {
     return err("No worktrees found", "GIT_WORKTREE_LIST_ERROR");

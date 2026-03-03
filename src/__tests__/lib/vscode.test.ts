@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { createTestDir, cleanup } from "../helpers";
+import { join } from "node:path";
 import { createPaths } from "../../constants";
 import { writeConfig } from "../../lib/config";
 import { generateVSCodeWorkspace } from "../../lib/vscode";
+import { cleanup, createTestDir } from "../helpers";
 
 describe("generateVSCodeWorkspace", () => {
   let tempDir: string;
@@ -69,7 +69,7 @@ describe("generateVSCodeWorkspace", () => {
     // Write a file with extra keys
     writeFileSync(
       paths.vscodeWorkspace("alpha"),
-      JSON.stringify({ folders: [], settings: {}, extraKey: "should-be-gone" }, null, 2) + "\n",
+      `${JSON.stringify({ folders: [], settings: {}, extraKey: "should-be-gone" }, null, 2)}\n`,
     );
 
     const result = await generateVSCodeWorkspace("alpha", paths);

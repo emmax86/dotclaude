@@ -1,9 +1,9 @@
-import { exists, lstat, readdir, realpath, readlink, rm } from "node:fs/promises";
+import { exists, lstat, readdir, readlink, realpath, rm } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
-import { type Paths } from "../constants";
-import { type Result, ok, err } from "../types";
+import type { Paths } from "../constants";
+import { err, ok, type Result } from "../types";
 import { readPoolConfig, writePoolConfig } from "./config";
-import { removeWorktree as gitRemoveWorktree, type GitEnv } from "./git";
+import { type GitEnv, removeWorktree as gitRemoveWorktree } from "./git";
 
 /**
  * Classify a worktree entry path.
@@ -35,7 +35,9 @@ export async function classifyWorktreeEntry(
     return relToPool.startsWith("..") ? "linked" : "pool";
   }
 
-  if (lstatResult.isDirectory()) return "legacy";
+  if (lstatResult.isDirectory()) {
+    return "legacy";
+  }
 
   return null;
 }
@@ -79,7 +81,9 @@ export async function removePoolWorktree(
   // Step 2: read-modify-write worktrees.json in a single pass
   const poolConfig = paths.worktreePoolConfig;
   const poolResult = await readPoolConfig(poolConfig);
-  if (!poolResult.ok) return poolResult;
+  if (!poolResult.ok) {
+    return poolResult;
+  }
 
   const pool = poolResult.value;
   // wasLastRef is only true when workspace was recorded as the last reference.
@@ -87,7 +91,7 @@ export async function removePoolWorktree(
   // so we conservatively skip pool directory removal.
   let wasLastRef = false;
 
-  if (pool[repo] && pool[repo][slug]) {
+  if (pool[repo]?.[slug]) {
     const list = pool[repo][slug];
     const idx = list.indexOf(workspace);
     if (idx !== -1) {
@@ -95,10 +99,14 @@ export async function removePoolWorktree(
       if (list.length === 0) {
         wasLastRef = true;
         delete pool[repo][slug];
-        if (Object.keys(pool[repo]).length === 0) delete pool[repo];
+        if (Object.keys(pool[repo]).length === 0) {
+          delete pool[repo];
+        }
       }
       const writeResult = await writePoolConfig(poolConfig, pool);
-      if (!writeResult.ok) return writeResult;
+      if (!writeResult.ok) {
+        return writeResult;
+      }
     }
   }
 

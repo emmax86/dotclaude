@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { existsSync, lstatSync, readFileSync, readlinkSync, rmSync } from "node:fs";
-import { runCLI, createTempRoot, cleanupTempRoot, createGitRepo } from "./helpers";
+import { join } from "node:path";
+import { cleanupTempRoot, createGitRepo, createTempRoot, runCLI } from "./helpers";
 
 describe("E2E: CLI output shape", () => {
   let root: string;
@@ -305,7 +305,10 @@ describe("E2E: worktree commands", () => {
     const lines = r.stdout.split("\n").filter(Boolean);
     const featureLine = lines.find((l) => l.includes("feature-x"));
     expect(featureLine).toBeDefined();
-    const parts = featureLine!.split("\t");
+    if (!featureLine) {
+      return;
+    }
+    const parts = featureLine.split("\t");
     expect(parts).toHaveLength(4);
     expect(parts[0]).toBe("myrepo");
     expect(parts[1]).toBe("feature-x");
@@ -365,9 +368,15 @@ describe("E2E: worktree commands", () => {
     });
 
     // Delete pool entry to make the workspace symlink dangle
-    rmSync(join(root, "worktrees", "myrepo", "feature-x"), { recursive: true, force: true });
+    rmSync(join(root, "worktrees", "myrepo", "feature-x"), {
+      recursive: true,
+      force: true,
+    });
 
-    const r = runCLI(["ws", "worktree", "prune"], { root, cwd: join(root, "myws") });
+    const r = runCLI(["ws", "worktree", "prune"], {
+      root,
+      cwd: join(root, "myws"),
+    });
     expect(r.exitCode).toBe(0);
 
     const data = r.json?.data as Record<string, unknown>;
@@ -629,15 +638,14 @@ describe("E2E: GROVE_WORKSPACE plumbed to all ws subcommands", () => {
     expect(r.exitCode).toBe(0);
   });
 
-  it.each(cleanCases)(
-    "%s exits 0 and emits deprecation warning when workspace comes from DOTCLAUDE_WORKSPACE",
-    (_, args) => {
-      const r = runCLI(args, { root, env: { DOTCLAUDE_WORKSPACE: "myws" } });
-      expect(r.exitCode).toBe(0);
-      expect(r.stderr).toContain("DOTCLAUDE_WORKSPACE");
-      expect(r.stderr).toContain("is deprecated");
-    },
-  );
+  it.each(
+    cleanCases,
+  )("%s exits 0 and emits deprecation warning when workspace comes from DOTCLAUDE_WORKSPACE", (_, args) => {
+    const r = runCLI(args, { root, env: { DOTCLAUDE_WORKSPACE: "myws" } });
+    expect(r.exitCode).toBe(0);
+    expect(r.stderr).toContain("DOTCLAUDE_WORKSPACE");
+    expect(r.stderr).toContain("is deprecated");
+  });
 
   // Subcommands that need a repo/worktree arg: workspace resolves from env,
   // failure is for a different reason (not WORKSPACE_NOT_FOUND)
@@ -649,14 +657,13 @@ describe("E2E: GROVE_WORKSPACE plumbed to all ws subcommands", () => {
     ["ws worktree remove", ["ws", "worktree", "remove", "gone", "slug"]],
   ];
 
-  it.each(repoArgCases)(
-    "%s resolves workspace from GROVE_WORKSPACE (fails for non-workspace reason)",
-    (_, args) => {
-      const r = runCLI(args, { root, env: { GROVE_WORKSPACE: "myws" } });
-      if (r.exitCode !== 0) {
-        const errJson = JSON.parse(r.stderr) as { code?: string };
-        expect(errJson.code).not.toBe("WORKSPACE_NOT_FOUND");
-      }
-    },
-  );
+  it.each(
+    repoArgCases,
+  )("%s resolves workspace from GROVE_WORKSPACE (fails for non-workspace reason)", (_, args) => {
+    const r = runCLI(args, { root, env: { GROVE_WORKSPACE: "myws" } });
+    if (r.exitCode !== 0) {
+      const errJson = JSON.parse(r.stderr) as { code?: string };
+      expect(errJson.code).not.toBe("WORKSPACE_NOT_FOUND");
+    }
+  });
 });

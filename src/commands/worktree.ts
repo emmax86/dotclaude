@@ -1,19 +1,19 @@
 import { exists, lstat, mkdir, readdir, rm, symlink } from "node:fs/promises";
 import { dirname, relative } from "node:path";
-import { type Paths } from "../constants";
-import { type Result, ok, err, type WorktreeEntry, type CommandResult } from "../types";
-import { readConfig, addPoolReference, getPoolSlugsForWorkspace } from "../lib/config";
+import type { Paths } from "../constants";
+import { loadCommandConfig, resolveCommand, spawnCommand } from "../lib/commands";
+import { addPoolReference, getPoolSlugsForWorkspace, readConfig } from "../lib/config";
+import { detectEcosystem } from "../lib/detect";
 import {
-  addWorktree as gitAddWorktree,
-  removeWorktree as gitRemoveWorktree,
-  getDefaultBranch,
   type AddWorktreeOptions,
   type GitEnv,
+  getDefaultBranch,
+  addWorktree as gitAddWorktree,
+  removeWorktree as gitRemoveWorktree,
 } from "../lib/git";
 import { toSlug } from "../lib/slug";
-import { classifyWorktreeEntry, resolveRepoPath, removePoolWorktree } from "../lib/worktree-utils";
-import { detectEcosystem } from "../lib/detect";
-import { loadCommandConfig, resolveCommand, spawnCommand } from "../lib/commands";
+import { classifyWorktreeEntry, removePoolWorktree, resolveRepoPath } from "../lib/worktree-utils";
+import { type CommandResult, err, ok, type Result, type WorktreeEntry } from "../types";
 
 export type { AddWorktreeOptions };
 
@@ -46,7 +46,9 @@ export async function addWorktree(
 
   // Resolve real repo path through repos/
   const repoPathResult = await resolveRepoPath(repo, paths);
-  if (!repoPathResult.ok) return repoPathResult;
+  if (!repoPathResult.ok) {
+    return repoPathResult;
+  }
   const realRepoPath = repoPathResult.value;
 
   const slug = toSlug(branch);
@@ -77,7 +79,9 @@ export async function addWorktree(
       { newBranch: options.newBranch, from: options.from },
       env,
     );
-    if (!gitResult.ok) return gitResult;
+    if (!gitResult.ok) {
+      return gitResult;
+    }
     poolEntryCreated = true;
   }
 
@@ -188,8 +192,9 @@ export async function pruneWorktrees(
 ): Promise<Result<PruneResult>> {
   const configResult = await readConfig(paths.workspaceConfig(workspace));
   if (!configResult.ok) {
-    if (configResult.code === "CONFIG_NOT_FOUND")
+    if (configResult.code === "CONFIG_NOT_FOUND") {
       return err(`Workspace "${workspace}" not found`, "WORKSPACE_NOT_FOUND");
+    }
     return configResult;
   }
 
@@ -197,7 +202,9 @@ export async function pruneWorktrees(
 
   for (const repo of configResult.value.repos) {
     const repoTreeDir = paths.repoDir(workspace, repo.name);
-    if (!(await exists(repoTreeDir))) continue;
+    if (!(await exists(repoTreeDir))) {
+      continue;
+    }
 
     let entries: string[];
     try {
@@ -215,7 +222,9 @@ export async function pruneWorktrees(
     let defaultSlug: string | null = null;
     try {
       const branchResult = await getDefaultBranch(repo.path, env);
-      if (branchResult.ok) defaultSlug = toSlug(branchResult.value);
+      if (branchResult.ok) {
+        defaultSlug = toSlug(branchResult.value);
+      }
     } catch {
       // repo.path inaccessible — treat as unknown, skip all linked entries
     }
@@ -225,11 +234,17 @@ export async function pruneWorktrees(
       const kind = await classifyWorktreeEntry(wtPath, paths);
       if (kind === "linked") {
         // Cannot determine default branch — skip all linked to avoid pruning it.
-        if (defaultSlug === null) continue;
+        if (defaultSlug === null) {
+          continue;
+        }
         // Default-branch linked symlinks are repaired by syncWorkspace, not pruned.
-        if (slug === defaultSlug) continue;
+        if (slug === defaultSlug) {
+          continue;
+        }
         // Target exists — not dangling.
-        if (await exists(wtPath)) continue;
+        if (await exists(wtPath)) {
+          continue;
+        }
         // Best-effort removal.
         try {
           await rm(wtPath, { force: true });
@@ -239,8 +254,12 @@ export async function pruneWorktrees(
         pruned.push({ repo: repo.name, slug });
         continue;
       }
-      if (kind !== "pool") continue;
-      if (await exists(wtPath)) continue; // target exists — not dangling
+      if (kind !== "pool") {
+        continue;
+      }
+      if (await exists(wtPath)) {
+        continue; // target exists — not dangling
+      }
 
       // Dangling pool symlink — remove symlink first, then clean pool ref.
       try {
@@ -282,9 +301,13 @@ export async function pruneWorktrees(
         } catch {
           /* gone */
         }
-        if (symlinkExists) continue;
+        if (symlinkExists) {
+          continue;
+        }
         // Pool dir still present means the worktree is live
-        if (await exists(poolEntry)) continue;
+        if (await exists(poolEntry)) {
+          continue;
+        }
 
         const removeResult = await removePoolWorktree(
           workspace,
@@ -294,7 +317,9 @@ export async function pruneWorktrees(
           paths,
           env,
         );
-        if (removeResult.ok) pruned.push({ repo: repo.name, slug });
+        if (removeResult.ok) {
+          pruned.push({ repo: repo.name, slug });
+        }
       }
     }
   }
@@ -325,7 +350,9 @@ export async function removeWorktree(
         paths,
         env,
       );
-      if (!removeResult.ok) return removeResult;
+      if (!removeResult.ok) {
+        return removeResult;
+      }
       if (removeResult.value.gitWarning) {
         return err(removeResult.value.gitWarning, "GIT_WORKTREE_REMOVE_ERROR");
       }
@@ -336,7 +363,9 @@ export async function removeWorktree(
 
   if (kind === "pool") {
     const removeResult = await removePoolWorktree(workspace, repo, slug, options, paths, env);
-    if (!removeResult.ok) return removeResult;
+    if (!removeResult.ok) {
+      return removeResult;
+    }
     if (removeResult.value.gitWarning) {
       return err(removeResult.value.gitWarning, "GIT_WORKTREE_REMOVE_ERROR");
     }
@@ -345,7 +374,9 @@ export async function removeWorktree(
 
   if (kind === "legacy") {
     const repoPathResult = await resolveRepoPath(repo, paths);
-    if (!repoPathResult.ok) return repoPathResult;
+    if (!repoPathResult.ok) {
+      return repoPathResult;
+    }
     return gitRemoveWorktree(repoPathResult.value, wtPath, options.force, env);
   }
 

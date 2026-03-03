@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile, unlink, access, readFile } from "node:fs/promises";
+import { access, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { type Paths } from "../constants.js";
+import type { Paths } from "../constants.js";
 import { createMcpServer } from "../mcp-server.js";
 import { AsyncMutex } from "./mutex.js";
 
@@ -33,7 +33,9 @@ export async function startDaemon(options: DaemonOptions): Promise<DaemonInfo> {
   let graceTimer: ReturnType<typeof setTimeout> | null = null;
 
   function startGraceTimer() {
-    if (graceTimer) clearTimeout(graceTimer);
+    if (graceTimer) {
+      clearTimeout(graceTimer);
+    }
     graceTimer = setTimeout(() => shutdown(), gracePeriodMs);
   }
 
@@ -109,7 +111,9 @@ export async function startDaemon(options: DaemonOptions): Promise<DaemonInfo> {
             process.stderr.write(`[daemon] session opened: ${id}\n`);
           },
           onsessionclosed: (id) => {
-            if (sessions.has(id)) onSessionClosed(id);
+            if (sessions.has(id)) {
+              onSessionClosed(id);
+            }
           },
         });
 
@@ -180,7 +184,9 @@ export async function discoverDaemon(workspace: string, paths: Paths): Promise<D
   let health: { ok: boolean; workspace: string };
   try {
     const res = await fetch(healthUrl, { signal: AbortSignal.timeout(2000) });
-    if (!res.ok) throw new Error("unhealthy");
+    if (!res.ok) {
+      throw new Error("unhealthy");
+    }
     health = (await res.json()) as { ok: boolean; workspace: string };
   } catch {
     await unlink(discoveryPath).catch(() => {});

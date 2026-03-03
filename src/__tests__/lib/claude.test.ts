@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { join } from "node:path";
-import { existsSync, readFileSync, symlinkSync, writeFileSync, rmSync } from "node:fs";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { existsSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
-import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "../helpers";
+import { join } from "node:path";
 import { createPaths } from "../../constants";
-import { writeConfig } from "../../lib/config";
 import { generateClaudeFiles } from "../../lib/claude";
+import { writeConfig } from "../../lib/config";
+import { cleanup, createTestDir, createTestGitRepo, GIT_ENV } from "../helpers";
 
 describe("generateClaudeFiles", () => {
   let tempDir: string;
@@ -65,7 +65,9 @@ describe("generateClaudeFiles", () => {
 
       const result = await generateClaudeFiles("ws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
-      if (!result.ok) return;
+      if (!result.ok) {
+        return;
+      }
 
       expect(result.value.treesMd).toEqual(["alpha", "bravo"]);
 
@@ -84,7 +86,9 @@ describe("generateClaudeFiles", () => {
 
       const result = await generateClaudeFiles("ws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
-      if (!result.ok) return;
+      if (!result.ok) {
+        return;
+      }
 
       expect(result.value.treesMd).toEqual(["alpha"]);
 
@@ -99,7 +103,9 @@ describe("generateClaudeFiles", () => {
 
       const result = await generateClaudeFiles("ws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
-      if (!result.ok) return;
+      if (!result.ok) {
+        return;
+      }
 
       expect(result.value.treesMd).toEqual([]);
 
@@ -120,7 +126,9 @@ describe("generateClaudeFiles", () => {
 
       const result = await generateClaudeFiles("ws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
-      if (!result.ok) return;
+      if (!result.ok) {
+        return;
+      }
 
       expect(result.value.treesMd).toEqual(["apple", "mango", "zebra"]);
 
@@ -137,7 +145,9 @@ describe("generateClaudeFiles", () => {
 
       const result = await generateClaudeFiles("ws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
-      if (!result.ok) return;
+      if (!result.ok) {
+        return;
+      }
 
       const content = readFileSync(paths.claudeTreesMd("ws"), "utf-8");
       expect(content).toContain("@../trees/alpha/release-1.0/CLAUDE.md");
@@ -149,7 +159,9 @@ describe("generateClaudeFiles", () => {
 
       const result = await generateClaudeFiles("ws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
-      if (!result.ok) return;
+      if (!result.ok) {
+        return;
+      }
 
       const content = readFileSync(paths.claudeTreesMd("ws"), "utf-8");
       expect(content).toContain("@../trees/alpha/feature-team-task-123/CLAUDE.md");
@@ -160,7 +172,9 @@ describe("generateClaudeFiles", () => {
 
       const result = await generateClaudeFiles("ws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
-      if (!result.ok) return;
+      if (!result.ok) {
+        return;
+      }
 
       expect(result.value.treesMd).toEqual([]);
       expect(existsSync(paths.claudeTreesMd("ws"))).toBe(true);
@@ -210,7 +224,9 @@ describe("generateClaudeFiles", () => {
 
       const result = await generateClaudeFiles("ws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
-      if (!result.ok) return;
+      if (!result.ok) {
+        return;
+      }
 
       expect(result.value.claudeMd).toBe("created");
 
@@ -224,7 +240,9 @@ describe("generateClaudeFiles", () => {
 
       const result = await generateClaudeFiles("ws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
-      if (!result.ok) return;
+      if (!result.ok) {
+        return;
+      }
 
       expect(result.value.claudeMd).toBe("exists");
 
@@ -275,7 +293,9 @@ describe("generateClaudeFiles", () => {
 
       const result = await generateClaudeFiles("ws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
-      if (!result.ok) return;
+      if (!result.ok) {
+        return;
+      }
 
       expect(result.value.treesMd).toEqual(["alpha"]);
     });
@@ -303,7 +323,7 @@ describe("generateClaudeFiles", () => {
         env: gitEnv,
       });
       const sha = new TextDecoder().decode(shaResult.stdout).trim();
-      writeFileSync(join(detachedPath, ".git", "HEAD"), sha + "\n");
+      writeFileSync(join(detachedPath, ".git", "HEAD"), `${sha}\n`);
 
       writeFileSync(join(detachedPath, "CLAUDE.md"), "# bravo\n");
 
@@ -317,7 +337,9 @@ describe("generateClaudeFiles", () => {
 
       const result = await generateClaudeFiles("ws", paths, GIT_ENV);
       expect(result.ok).toBe(true);
-      if (!result.ok) return;
+      if (!result.ok) {
+        return;
+      }
 
       expect(result.value.treesMd).toEqual(["alpha"]);
     });

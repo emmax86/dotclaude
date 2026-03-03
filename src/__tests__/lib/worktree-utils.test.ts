@@ -1,5 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { dirname, join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
   existsSync,
   lstatSync,
@@ -9,16 +8,17 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { createTestDir, createTestGitRepo, cleanup, GIT_ENV } from "../helpers";
+import { dirname, join } from "node:path";
+import { addRepo } from "../../commands/repo";
+import { addWorkspace } from "../../commands/workspace";
+import { addWorktree } from "../../commands/worktree";
 import { createPaths } from "../../constants";
 import {
   classifyWorktreeEntry,
-  resolveRepoPath,
   removePoolWorktree,
+  resolveRepoPath,
 } from "../../lib/worktree-utils";
-import { addWorkspace } from "../../commands/workspace";
-import { addRepo } from "../../commands/repo";
-import { addWorktree } from "../../commands/worktree";
+import { cleanup, createTestDir, createTestGitRepo, GIT_ENV } from "../helpers";
 
 describe("classifyWorktreeEntry", () => {
   let tempDir: string;

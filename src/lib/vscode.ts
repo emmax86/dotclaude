@@ -1,6 +1,6 @@
 import { writeFile } from "node:fs/promises";
-import { type Paths } from "../constants";
-import { type Result, ok, err } from "../types";
+import type { Paths } from "../constants";
+import { err, ok, type Result } from "../types";
 import { readConfig } from "./config";
 
 export async function generateVSCodeWorkspace(
@@ -33,7 +33,7 @@ export async function generateVSCodeWorkspace(
   };
 
   try {
-    await writeFile(paths.vscodeWorkspace(workspace), JSON.stringify(obj, null, 2) + "\n");
+    await writeFile(paths.vscodeWorkspace(workspace), `${JSON.stringify(obj, null, 2)}\n`);
   } catch (e) {
     return err(String(e), "VSCODE_WORKSPACE_WRITE_FAILED");
   }

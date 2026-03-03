@@ -1,9 +1,9 @@
-import { exists, realpath } from "node:fs/promises";
 import { realpathSync } from "node:fs";
+import { exists, realpath } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
-import { type Context, type Result, ok, err } from "./types";
-import { type Paths } from "./constants";
+import type { Paths } from "./constants";
 import { readConfig } from "./lib/config";
+import { type Context, err, ok, type Result } from "./types";
 
 async function tryRealpath(p: string): Promise<string> {
   try {
@@ -53,7 +53,9 @@ export async function inferContext(cwd: string, workspacesRoot: string): Promise
     }
   }
 
-  if (!found) return {};
+  if (!found) {
+    return {};
+  }
 
   const workspaceDir = found;
   const workspaceName = workspaceDir.split(sep).pop() ?? "";
@@ -79,19 +81,27 @@ export async function inferContext(cwd: string, workspacesRoot: string): Promise
   }
 
   const segments = relToCwd.split(sep).filter(Boolean);
-  if (segments.length === 0) return context;
+  if (segments.length === 0) {
+    return context;
+  }
 
   // Repos live under trees/ within the workspace directory
   const offset = segments[0] === "trees" ? 1 : 0;
   const repoSegment = segments[offset];
-  if (!repoSegment) return context;
+  if (!repoSegment) {
+    return context;
+  }
 
   // Validate repo segment against workspace.json
   const configResult = await readConfig(join(workspaceDir, "workspace.json"));
-  if (!configResult.ok) return context;
+  if (!configResult.ok) {
+    return context;
+  }
 
   const repoEntry = configResult.value.repos.find((r) => r.name === repoSegment);
-  if (!repoEntry) return context;
+  if (!repoEntry) {
+    return context;
+  }
 
   context.repo = repoSegment;
 
@@ -123,7 +133,9 @@ export async function resolveRepoFromFile(
 
   // Read workspace config once — used by both pool-path and main-worktree checks below
   const configResult = await readConfig(paths.workspaceConfig(workspace));
-  if (!configResult.ok) return err("Workspace not found", "REPO_NOT_RESOLVED");
+  if (!configResult.ok) {
+    return err("Workspace not found", "REPO_NOT_RESOLVED");
+  }
 
   // Check if the file is under the shared worktrees pool
   const poolRoot = paths.worktreePool;

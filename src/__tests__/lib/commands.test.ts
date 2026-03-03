@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { writeFileSync, mkdirSync } from "node:fs";
-import { createTestDir, cleanup } from "../helpers";
 import { loadCommandConfig, resolveCommand, spawnCommand } from "../../lib/commands";
+import { cleanup, createTestDir } from "../helpers";
 
 const GROVE_DIR = ".grove";
 
@@ -30,7 +30,7 @@ describe("loadCommandConfig", () => {
     );
     const result = await loadCommandConfig(tempDir);
     expect(result).not.toBeNull();
-    expect(result!.check).toEqual(["bun", "run", "typecheck"]);
+    expect(result?.check).toEqual(["bun", "run", "typecheck"]);
   });
 
   it("returns null on invalid JSON", async () => {
@@ -48,7 +48,7 @@ describe("loadCommandConfig", () => {
     );
     const result = await loadCommandConfig(tempDir);
     expect(result).not.toBeNull();
-    expect(result!.check).toEqual(["bun", "run", "typecheck"]);
+    expect(result?.check).toEqual(["bun", "run", "typecheck"]);
   });
 
   it("emits deprecation warning when falling back to .dotclaude/commands.json", async () => {

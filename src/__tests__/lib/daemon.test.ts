@@ -1,12 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { writeFileSync, existsSync, readFileSync } from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { createTestDir, cleanup } from "../helpers";
-import { createPaths } from "../../constants";
 import { addWorkspace } from "../../commands/workspace";
+import { createPaths } from "../../constants";
 import { discoverDaemon, startDaemon } from "../../lib/daemon";
+import { cleanup, createTestDir } from "../helpers";
 
 // ── Layer 1: filesystem / discovery ─────────────────────────────────────────
 
@@ -121,7 +121,7 @@ describe("startDaemon", () => {
 
     const found = await discoverDaemon("ws", paths);
     expect(found).not.toBeNull();
-    expect(found!.pid).toBe(process.pid);
+    expect(found?.pid).toBe(process.pid);
   });
 
   it("stop() removes discovery file", async () => {
