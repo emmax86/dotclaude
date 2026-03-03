@@ -68,7 +68,8 @@ export async function generateClaudeFiles(
     // Discover all worktree slugs from disk
     let diskSlugs: string[];
     try {
-      diskSlugs = await readdir(paths.repoDir(workspace, repo.name));
+      const dirents = await readdir(paths.repoDir(workspace, repo.name), { withFileTypes: true });
+      diskSlugs = dirents.filter((d) => d.isDirectory() || d.isSymbolicLink()).map((d) => d.name);
     } catch {
       continue; // trees/{repo}/ doesn't exist — skip
     }
