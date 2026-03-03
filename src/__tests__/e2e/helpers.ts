@@ -67,7 +67,11 @@ export async function createTempRoot(): Promise<string> {
 }
 
 export async function cleanupTempRoot(dir: string): Promise<void> {
-  await rm(dir, { recursive: true, force: true });
+  try {
+    await rm(dir, { recursive: true, force: true });
+  } catch {
+    // ignore — best-effort teardown
+  }
 }
 
 /** Create a minimal git repo with an initial commit and return its path. */

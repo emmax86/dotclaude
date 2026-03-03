@@ -43,7 +43,11 @@ export async function createTestGitRepo(
 
 export async function cleanup(...dirs: string[]): Promise<void> {
   for (const dir of dirs) {
-    await rm(dir, { recursive: true, force: true });
+    try {
+      await rm(dir, { recursive: true, force: true });
+    } catch {
+      // ignore — best-effort teardown
+    }
   }
 }
 
