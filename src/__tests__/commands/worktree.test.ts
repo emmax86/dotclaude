@@ -6,7 +6,6 @@ import {
   mkdir,
   readFile,
   readlink,
-  realpath,
   rm,
   symlink,
   writeFile,
@@ -407,8 +406,13 @@ describe("worktree commands", () => {
         expect(result.value.pruned[0].slug).toBe("feature-x");
       }
 
-      // Symlink was removed — lstat should throw
-      const symlinkGone = !(await exists(wtPath));
+      // Symlink file was removed — lstat throws ENOENT
+      let symlinkGone = false;
+      try {
+        await lstat(wtPath);
+      } catch {
+        symlinkGone = true;
+      }
       expect(symlinkGone).toBe(true);
 
       // worktrees.json cleaned up
@@ -585,8 +589,13 @@ describe("worktree commands", () => {
         expect(result.value.pruned[0].slug).toBe("feature-x");
       }
 
-      // Symlink was removed
-      const symlinkGone = !(await exists(wtPath));
+      // Symlink file was removed — lstat throws ENOENT
+      let symlinkGone = false;
+      try {
+        await lstat(wtPath);
+      } catch {
+        symlinkGone = true;
+      }
       expect(symlinkGone).toBe(true);
     });
 
@@ -609,8 +618,13 @@ describe("worktree commands", () => {
         expect(result.value.pruned[0].slug).toBe(slug);
       }
 
-      // Symlink was removed
-      const symlinkGone = !(await exists(wtPath));
+      // Symlink file was removed — lstat throws ENOENT
+      let symlinkGone = false;
+      try {
+        await lstat(wtPath);
+      } catch {
+        symlinkGone = true;
+      }
       expect(symlinkGone).toBe(true);
     });
 
@@ -666,8 +680,13 @@ describe("worktree commands", () => {
         expect(result.value.pruned[0].slug).toBe("stale-link");
       }
 
-      // Symlink was removed
-      const symlinkGone = !(await exists(wtPath));
+      // Symlink was removed — use lstat to check the symlink file itself (not its target)
+      let symlinkGone = false;
+      try {
+        await lstat(wtPath);
+      } catch {
+        symlinkGone = true;
+      }
       expect(symlinkGone).toBe(true);
     });
 
