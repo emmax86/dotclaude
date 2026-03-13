@@ -40,7 +40,13 @@ export function createMcpServer(
       const result = await getStatus(workspace, paths);
       const data = result.ok ? result.value : { error: result.error };
       return {
-        contents: [{ uri: "grove://workspace/context", text: JSON.stringify(data) }],
+        contents: [
+          {
+            uri: "grove://workspace/context",
+            mimeType: "application/json",
+            text: JSON.stringify(data, null, 2),
+          },
+        ],
       };
     },
   );

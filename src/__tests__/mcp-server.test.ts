@@ -72,14 +72,41 @@ describe("MCP server", () => {
         uri: "grove://workspace/context",
       });
       expect(result.contents).toHaveLength(1);
-      const text = (result.contents[0] as { uri: string; text: string }).text;
+      const content = result.contents[0] as {
+        uri: string;
+        mimeType?: string;
+        text: string;
+      };
+      expect(content.mimeType).toBe("application/json");
+      const text = content.text;
       const data = JSON.parse(text);
 
       expect(data.name).toBe("ws");
       expect(Array.isArray(data.repos)).toBe(true);
       expect(data.repos).toHaveLength(1);
       expect(data.repos[0].name).toBe("myrepo");
-      expect(Array.isArray(data.repos[0].worktrees)).toBe(true);
+      expect(data.repos[0].worktrees.length).toBeGreaterThan(0);
+      expect(data.repos[0].worktrees[0].type).toBe("linked");
+
+      await client.close();
+      await server.close();
+    });
+
+    it("context resource returns error object when workspace does not exist", async () => {
+      const server = createMcpServer("nonexistent", paths);
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      const client = new Client({ name: "test-client", version: "1.0.0" });
+      await server.connect(serverTransport);
+      await client.connect(clientTransport);
+
+      const result = await client.readResource({
+        uri: "grove://workspace/context",
+      });
+      expect(result.contents).toHaveLength(1);
+      const content = result.contents[0] as { text: string };
+      const data = JSON.parse(content.text);
+
+      expect(data.error).toBeDefined();
 
       await client.close();
       await server.close();
