@@ -1,7 +1,7 @@
 ---
 description: Show status overview for the current grove workspace (repos and worktrees)
 argument-hint: "[workspace]"
-allowed-tools: Bash(grove ws status:*)
+allowed-tools: Bash(grove ws status *)
 ---
 
 Run grove workspace status:

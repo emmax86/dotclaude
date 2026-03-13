@@ -1,7 +1,7 @@
 ---
 description: Manage grove workspaces (add, list, remove, status, path, sync)
 argument-hint: <subcommand> [args...]
-allowed-tools: Bash(grove ws add:*), Bash(grove ws list:*), Bash(grove ws remove:*), Bash(grove ws status:*), Bash(grove ws path:*), Bash(grove ws sync:*)
+allowed-tools: Bash(grove ws add *), Bash(grove ws list *), Bash(grove ws remove *), Bash(grove ws status *), Bash(grove ws path *), Bash(grove ws sync *)
 ---
 
 Run the grove workspace subcommand with the provided arguments:
