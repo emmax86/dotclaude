@@ -10,12 +10,14 @@ async function invokeScript(input: unknown): Promise<{ denied: boolean }> {
   const proc = Bun.spawn(["bun", "run", HOOK_SCRIPT], {
     stdin: new Blob([JSON.stringify(input)]),
     stdout: "pipe",
-    stderr: "pipe",
+    stderr: "inherit", // surface errors in test output; avoids pipe deadlock
   });
-  const stdout = await new Response(proc.stdout).text();
-  const exitCode = await proc.exited;
+  const [stdout, exitCode] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
   if (exitCode === 2) {
     return { denied: true, ...JSON.parse(stdout.trim()) };
+  }
+  if (exitCode !== 0) {
+    throw new Error(`Hook exited with unexpected code ${exitCode}`);
   }
   return { denied: false };
 }

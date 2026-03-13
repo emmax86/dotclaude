@@ -53,8 +53,29 @@ function isGitWorktreeSegment(segment: string): boolean {
   return tokens[i] === "worktree";
 }
 
-const input = JSON.parse(await Bun.stdin.text());
-const command: string = input?.tool_input?.command ?? "";
+function extractCommand(input: unknown): string {
+  if (
+    input !== null &&
+    typeof input === "object" &&
+    "tool_input" in input &&
+    typeof (input as { tool_input: unknown }).tool_input === "object" &&
+    (input as { tool_input: unknown }).tool_input !== null &&
+    "command" in (input as { tool_input: object }).tool_input &&
+    typeof (input as { tool_input: { command: unknown } }).tool_input.command === "string"
+  ) {
+    return (input as { tool_input: { command: string } }).tool_input.command;
+  }
+  return "";
+}
+
+let input: unknown;
+try {
+  input = JSON.parse(await Bun.stdin.text());
+} catch {
+  process.exit(0); // malformed input — fail open
+}
+
+const command = extractCommand(input);
 
 const denied = command.split(/[;&|\n]/).some(isGitWorktreeSegment);
 
