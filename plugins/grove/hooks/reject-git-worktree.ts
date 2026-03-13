@@ -6,8 +6,10 @@
 // single/double quotes with backslash escapes. Each segment is then walked
 // structurally to check for a git worktree invocation.
 //
-// Known limitation: command substitution (`$(git worktree list)`) and
-// heredoc-embedded calls are not detected. Full shell parsing is out of scope.
+// Known limitation: backtick command substitution (` `git worktree list` `),
+// fd-redirect prefixes (`1>&2 git worktree list`), and heredoc-embedded calls
+// are not detected. Full shell parsing is out of scope.
+// Note: `$(git worktree list)` IS caught because `(` is a segment boundary.
 
 const DENY_OUTPUT = {
   hookSpecificOutput: {
@@ -25,7 +27,15 @@ const DENY_OUTPUT = {
 };
 
 // Git global options that consume the next token as a separate value argument.
-const VALUE_FLAGS = new Set(["-C", "-c", "--git-dir", "--work-tree", "--namespace"]);
+const VALUE_FLAGS = new Set([
+  "-C",
+  "-c",
+  "--git-dir",
+  "--work-tree",
+  "--namespace",
+  "--exec-path",
+  "--super-prefix",
+]);
 
 // Tokenize a shell command into segments split on operators (;  &  |  newline),
 // respecting single/double quoting and backslash escapes so operators inside
@@ -51,8 +61,8 @@ function tokenizeIntoSegments(command: string): string[][] {
     } else if (ch === "\\" && i + 1 < command.length) {
       current += command[++i];
       i++;
-    } else if (/[;&|\n]/.test(ch)) {
-      // operator outside quotes — flush current token and start a new segment
+    } else if (/[;&|\n(){}]/.test(ch)) {
+      // operator or grouping character outside quotes — flush current token and start a new segment
       if (current.length > 0) {
         segments[segments.length - 1].push(current);
         current = "";

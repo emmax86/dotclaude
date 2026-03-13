@@ -57,6 +57,11 @@ const DENY_CASES: [string, unknown][] = [
     "git -C /path -c user.name=test worktree list (multiple VALUE_FLAGS)",
     cmd("git -C /path -c user.name=test worktree list"),
   ],
+  // subshell and brace grouping — ( and { are segment boundaries
+  ["(git worktree list) — subshell grouping", cmd("(git worktree list)")],
+  ["{ git worktree list; } — brace grouping", cmd("{ git worktree list; }")],
+  // command substitution — ( is a boundary so the inner segment is detected
+  ["$(git worktree list) — command substitution", cmd("$(git worktree list)")],
   // multiple env var assignments before git
   [
     "GIT_DIR=.git GIT_WORK_TREE=. git worktree list (multiple env vars)",
@@ -124,6 +129,11 @@ const ALLOW_CASES: [string, unknown][] = [
   [
     "git --git-dir=.git/worktree log (worktree in --git-dir value)",
     cmd("git --git-dir=.git/worktree log"),
+  ],
+  // --exec-path consumes next token as value; subcommand is list, not worktree
+  [
+    "git --exec-path worktree list (worktree is exec-path value, list is subcommand)",
+    cmd("git --exec-path worktree list"),
   ],
 ];
 
