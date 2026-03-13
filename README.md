@@ -105,12 +105,28 @@ grove ws status
 | `remove [repo] <slug> [--force]`                         | Remove a worktree               |
 | `prune`                                                  | Clean up dangling symlinks      |
 
+### Exec — `grove ws exec <command>`
+
+Run standard commands against a repo without needing to know its toolchain:
+
+| Command                                 | Description                  |
+| --------------------------------------- | ---------------------------- |
+| `setup`                                 | Install dependencies         |
+| `format`                                | Format and lint code         |
+| `test`                                  | Run the full test suite      |
+| `test:file <file>`                      | Run tests for a single file  |
+| `test:match [file] [--match <pattern>]` | Run tests matching a pattern |
+| `check`                                 | Typecheck the project        |
+
+`setup`, `format`, and `test` are auto-detected from lockfiles (`bun.lock` → bun, `pnpm-lock.yaml` → pnpm, `package-lock.json` → npm, `uv.lock` → uv). `test:file`, `test:match`, and `check` require a per-repo `.grove/commands.json` entry.
+
+Options: `--repo <name>` (required when no file is given, otherwise inferred from file path), `--match <pattern>` (filter pattern for `test:match`), `--dry-run` (print resolved command without running).
+
 ### Other
 
-| Command                                                                 | Description                                                                           |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `grove ws exec <cmd> [file] [--repo R] [--match <pattern>] [--dry-run]` | Run workspace command (`setup`, `format`, `test`, `check`, `test:file`, `test:match`) |
-| `grove mcp-server [--workspace W] [--port P]`                           | Start MCP server (top-level, not under `ws`)                                          |
+| Command                                       | Description                                  |
+| --------------------------------------------- | -------------------------------------------- |
+| `grove mcp-server [--workspace W] [--port P]` | Start MCP server (top-level, not under `ws`) |
 
 Bracketed args are inferred from CWD. Override with `--workspace` flag or `GROVE_WORKSPACE` env var.
 
@@ -118,7 +134,7 @@ List commands output JSON by default. Pass `--porcelain` for stable, script-frie
 
 ## Integrations
 
-- **Claude Code plugin** — `.claude-plugin/` registers `/workspace`, `/workspace-status`, `/worktree`, `/repo` slash commands
+- **Claude Code plugin** — `.claude-plugin/` registers `/workspace`, `/workspace-status`, `/worktree`, `/repo`, `/exec` slash commands
 - **MCP server** — `grove mcp-server` exposes workspace operations over MCP for AI tool integration
 - **Auto-generated files** — adding/removing repos creates `CLAUDE.md` once (if absent), then regenerates `.claude/trees.md` and `{workspace}.code-workspace` to keep editor and agent configs in sync
 
