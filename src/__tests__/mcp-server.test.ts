@@ -242,7 +242,7 @@ describe("MCP server", () => {
       await setupWorkspaceWithRepo();
       const calls: string[] = [];
       const { client, server } = await connectClient("ws", {
-        onStateChange: () => calls.push("changed"),
+        onStateChange: () => void calls.push("changed"),
       });
 
       await client.callTool({
@@ -260,7 +260,7 @@ describe("MCP server", () => {
       await setupWorkspaceWithRepo();
       const calls: string[] = [];
       const { client, server } = await connectClient("ws", {
-        onStateChange: () => calls.push("changed"),
+        onStateChange: () => void calls.push("changed"),
       });
 
       // Add a worktree first (triggers one change)
@@ -286,7 +286,7 @@ describe("MCP server", () => {
       await addWorkspace("ws", paths);
       const calls: string[] = [];
       const { client, server } = await connectClient("ws", {
-        onStateChange: () => calls.push("changed"),
+        onStateChange: () => void calls.push("changed"),
       });
 
       await client.callTool({
@@ -300,17 +300,28 @@ describe("MCP server", () => {
       await server.close();
     });
 
-    it("returns success even when onStateChange throws", async () => {
-      await setupWorkspaceWithRepo();
-      const { client, server } = await connectClient("ws", {
-        onStateChange: () => {
+    it.each([
+      [
+        "sync throw",
+        "notify-sync-throw",
+        () => {
           throw new Error("notification failed");
         },
-      });
+      ],
+      [
+        "async rejection",
+        "notify-async-rejection",
+        async () => {
+          throw new Error("notification failed");
+        },
+      ],
+    ])("returns success when onStateChange has %s", async (_, branch, onStateChange) => {
+      await setupWorkspaceWithRepo();
+      const { client, server } = await connectClient("ws", { onStateChange });
 
       const result = await client.callTool({
         name: "workspace_add_worktree",
-        arguments: { repo: "myrepo", branch: "throw-test", newBranch: true },
+        arguments: { repo: "myrepo", branch, newBranch: true },
       });
 
       expect(result.isError).toBeFalsy();

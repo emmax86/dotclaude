@@ -64,7 +64,11 @@ export async function startDaemon(options: DaemonOptions): Promise<DaemonInfo> {
 
   function onSessionClosed(sessionId: string) {
     sessions.delete(sessionId);
+    const server = servers.get(sessionId);
     servers.delete(sessionId);
+    server?.close().catch((e) => {
+      process.stderr.write(`[daemon] failed to close server for session ${sessionId}: ${e}\n`);
+    });
     process.stderr.write(`[daemon] session closed: ${sessionId}, active: ${sessions.size}\n`);
     if (sessions.size === 0) {
       startGraceTimer();
@@ -72,8 +76,12 @@ export async function startDaemon(options: DaemonOptions): Promise<DaemonInfo> {
   }
 
   function broadcastResourceListChanged() {
-    for (const server of servers.values()) {
-      server.sendResourceListChanged();
+    for (const [id, server] of servers) {
+      try {
+        server.sendResourceListChanged();
+      } catch (e) {
+        process.stderr.write(`[daemon] notification failed for session ${id}: ${e}\n`);
+      }
     }
   }
 

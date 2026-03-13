@@ -10,7 +10,7 @@ import type { AsyncMutex } from "./lib/mutex";
 
 interface McpServerOptions {
   writeLock?: AsyncMutex;
-  onStateChange?: () => void;
+  onStateChange?: () => void | Promise<void>;
 }
 
 function toErrorContent(error: string) {
@@ -109,7 +109,7 @@ export function createMcpServer(
         return toErrorContent(result.error);
       }
       try {
-        onStateChange?.();
+        await onStateChange?.();
       } catch (e) {
         process.stderr.write(`[mcp] onStateChange failed: ${e}\n`);
       }
@@ -134,7 +134,7 @@ export function createMcpServer(
         return toErrorContent(result.error);
       }
       try {
-        onStateChange?.();
+        await onStateChange?.();
       } catch (e) {
         process.stderr.write(`[mcp] onStateChange failed: ${e}\n`);
       }
