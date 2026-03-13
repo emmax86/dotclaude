@@ -238,6 +238,86 @@ describe("MCP server", () => {
       await server.close();
     });
 
+    it("calls onStateChange after workspace_add_worktree succeeds", async () => {
+      await setupWorkspaceWithRepo();
+      const calls: string[] = [];
+      const server = createMcpServer("ws", paths, {
+        onStateChange: () => {
+          calls.push("changed");
+        },
+      });
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      const client = new Client({ name: "test-client", version: "1.0.0" });
+      await server.connect(serverTransport);
+      await client.connect(clientTransport);
+
+      await client.callTool({
+        name: "workspace_add_worktree",
+        arguments: { repo: "myrepo", branch: "notify-test", newBranch: true },
+      });
+
+      expect(calls).toEqual(["changed"]);
+
+      await client.close();
+      await server.close();
+    });
+
+    it("calls onStateChange after workspace_remove_worktree succeeds", async () => {
+      await setupWorkspaceWithRepo();
+      const calls: string[] = [];
+      const server = createMcpServer("ws", paths, {
+        onStateChange: () => {
+          calls.push("changed");
+        },
+      });
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      const client = new Client({ name: "test-client", version: "1.0.0" });
+      await server.connect(serverTransport);
+      await client.connect(clientTransport);
+
+      // Add a worktree first (triggers one change)
+      await client.callTool({
+        name: "workspace_add_worktree",
+        arguments: { repo: "myrepo", branch: "to-notify", newBranch: true },
+      });
+
+      calls.length = 0; // reset
+
+      await client.callTool({
+        name: "workspace_remove_worktree",
+        arguments: { repo: "myrepo", slug: "to-notify" },
+      });
+
+      expect(calls).toEqual(["changed"]);
+
+      await client.close();
+      await server.close();
+    });
+
+    it("does not call onStateChange when worktree operation fails", async () => {
+      await addWorkspace("ws", paths);
+      const calls: string[] = [];
+      const server = createMcpServer("ws", paths, {
+        onStateChange: () => {
+          calls.push("changed");
+        },
+      });
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      const client = new Client({ name: "test-client", version: "1.0.0" });
+      await server.connect(serverTransport);
+      await client.connect(clientTransport);
+
+      await client.callTool({
+        name: "workspace_add_worktree",
+        arguments: { repo: "ghost", branch: "feature-x", newBranch: true },
+      });
+
+      expect(calls).toEqual([]);
+
+      await client.close();
+      await server.close();
+    });
+
     it("workspace_add_worktree returns error for unknown repo", async () => {
       await addWorkspace("ws", paths);
       const { client, server } = await connectClient("ws");
