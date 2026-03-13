@@ -108,7 +108,11 @@ export function createMcpServer(
       if (!result.ok) {
         return toErrorContent(result.error);
       }
-      onStateChange?.();
+      try {
+        onStateChange?.();
+      } catch (e) {
+        process.stderr.write(`[mcp] onStateChange failed: ${e}\n`);
+      }
       return toJsonContent(result.value);
     },
   );
@@ -129,7 +133,11 @@ export function createMcpServer(
       if (!result.ok) {
         return toErrorContent(result.error);
       }
-      onStateChange?.();
+      try {
+        onStateChange?.();
+      } catch (e) {
+        process.stderr.write(`[mcp] onStateChange failed: ${e}\n`);
+      }
       return toJsonContent({ ok: true });
     },
   );

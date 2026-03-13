@@ -28,8 +28,8 @@ describe("MCP server", () => {
     return repoPath;
   }
 
-  async function connectClient(workspace: string) {
-    const server = createMcpServer(workspace, paths);
+  async function connectClient(workspace: string, options?: Parameters<typeof createMcpServer>[2]) {
+    const server = createMcpServer(workspace, paths, options);
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: "test-client", version: "1.0.0" });
     await server.connect(serverTransport);
@@ -241,15 +241,9 @@ describe("MCP server", () => {
     it("calls onStateChange after workspace_add_worktree succeeds", async () => {
       await setupWorkspaceWithRepo();
       const calls: string[] = [];
-      const server = createMcpServer("ws", paths, {
-        onStateChange: () => {
-          calls.push("changed");
-        },
+      const { client, server } = await connectClient("ws", {
+        onStateChange: () => calls.push("changed"),
       });
-      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-      const client = new Client({ name: "test-client", version: "1.0.0" });
-      await server.connect(serverTransport);
-      await client.connect(clientTransport);
 
       await client.callTool({
         name: "workspace_add_worktree",
@@ -265,15 +259,9 @@ describe("MCP server", () => {
     it("calls onStateChange after workspace_remove_worktree succeeds", async () => {
       await setupWorkspaceWithRepo();
       const calls: string[] = [];
-      const server = createMcpServer("ws", paths, {
-        onStateChange: () => {
-          calls.push("changed");
-        },
+      const { client, server } = await connectClient("ws", {
+        onStateChange: () => calls.push("changed"),
       });
-      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-      const client = new Client({ name: "test-client", version: "1.0.0" });
-      await server.connect(serverTransport);
-      await client.connect(clientTransport);
 
       // Add a worktree first (triggers one change)
       await client.callTool({
@@ -281,7 +269,7 @@ describe("MCP server", () => {
         arguments: { repo: "myrepo", branch: "to-notify", newBranch: true },
       });
 
-      calls.length = 0; // reset
+      calls.splice(0); // reset
 
       await client.callTool({
         name: "workspace_remove_worktree",
@@ -297,15 +285,9 @@ describe("MCP server", () => {
     it("does not call onStateChange when worktree operation fails", async () => {
       await addWorkspace("ws", paths);
       const calls: string[] = [];
-      const server = createMcpServer("ws", paths, {
-        onStateChange: () => {
-          calls.push("changed");
-        },
+      const { client, server } = await connectClient("ws", {
+        onStateChange: () => calls.push("changed"),
       });
-      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-      const client = new Client({ name: "test-client", version: "1.0.0" });
-      await server.connect(serverTransport);
-      await client.connect(clientTransport);
 
       await client.callTool({
         name: "workspace_add_worktree",
@@ -313,6 +295,25 @@ describe("MCP server", () => {
       });
 
       expect(calls).toEqual([]);
+
+      await client.close();
+      await server.close();
+    });
+
+    it("returns success even when onStateChange throws", async () => {
+      await setupWorkspaceWithRepo();
+      const { client, server } = await connectClient("ws", {
+        onStateChange: () => {
+          throw new Error("notification failed");
+        },
+      });
+
+      const result = await client.callTool({
+        name: "workspace_add_worktree",
+        arguments: { repo: "myrepo", branch: "throw-test", newBranch: true },
+      });
+
+      expect(result.isError).toBeFalsy();
 
       await client.close();
       await server.close();
