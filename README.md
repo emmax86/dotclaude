@@ -109,18 +109,18 @@ grove ws status
 
 Run standard commands against a repo without needing to know its toolchain:
 
-| Command                           | Description                  |
-| --------------------------------- | ---------------------------- |
-| `setup`                           | Install dependencies         |
-| `format`                          | Format and lint code         |
-| `test`                            | Run the full test suite      |
-| `test:file <file>`                | Run tests for a single file  |
-| `test:match [file] --match <pat>` | Run tests matching a pattern |
-| `check`                           | Typecheck the project        |
+| Command                               | Description                  |
+| ------------------------------------- | ---------------------------- |
+| `setup`                               | Install dependencies         |
+| `format`                              | Format and lint code         |
+| `test`                                | Run the full test suite      |
+| `test:file <file>`                    | Run tests for a single file  |
+| `test:match [file] --match <pattern>` | Run tests matching a pattern |
+| `check`                               | Typecheck the project        |
 
-`setup`, `format`, and `test` are auto-detected from lockfiles (`bun.lock` → bun, `uv.lock` → uv, etc.). `test:file`, `test:match`, and `check` require a per-repo `.grove/commands.json` entry.
+`setup`, `format`, and `test` are auto-detected from lockfiles (`bun.lock` → bun, `pnpm-lock.yaml` → pnpm, `package-lock.json` → npm, `uv.lock` → uv). `test:file`, `test:match`, and `check` require a per-repo `.grove/commands.json` entry.
 
-Options: `--repo <name>` (otherwise inferred from file path), `--dry-run` (print resolved command without running).
+Options: `--repo <name>` (required when no file is given, otherwise inferred from file path), `--match <pattern>` (filter pattern for `test:match`), `--dry-run` (print resolved command without running).
 
 ### Other
 
