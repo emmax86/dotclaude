@@ -35,6 +35,9 @@ const DENY_CASES: [string, unknown][] = [
   ["env var prefix: GIT_DIR=.git git worktree list", cmd("GIT_DIR=.git git worktree list")],
   ["shell separator: echo ok; git worktree list", cmd("echo ok; git worktree list")],
   ["shell &&: echo ok && git worktree list", cmd("echo ok && git worktree list")],
+  ['quoted subcommand: git "worktree" list', cmd('git "worktree" list')],
+  ["single-quoted subcommand: git 'worktree' list", cmd("git 'worktree' list")],
+  ['quoted env var with spaces: VAR="a b" git worktree list', cmd('VAR="a b" git worktree list')],
 ];
 
 const ALLOW_CASES: [string, unknown][] = [

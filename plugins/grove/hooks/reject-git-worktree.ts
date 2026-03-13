@@ -26,8 +26,46 @@ const DENY_OUTPUT = {
 // Git global options that consume the next token as a separate value argument.
 const VALUE_FLAGS = new Set(["-C", "-c", "--git-dir", "--work-tree", "--namespace"]);
 
+// Minimal quote-aware tokenizer: strips single/double quotes and handles
+// backslash escapes so `git "worktree" list` is correctly detected.
+function tokenize(segment: string): string[] {
+  const tokens: string[] = [];
+  let current = "";
+  let i = 0;
+  while (i < segment.length) {
+    const ch = segment[i];
+    if (ch === '"' || ch === "'") {
+      const quote = ch;
+      i++;
+      while (i < segment.length && segment[i] !== quote) {
+        if (quote === '"' && segment[i] === "\\" && i + 1 < segment.length) {
+          i++; // consume backslash escape in double-quoted strings
+        }
+        current += segment[i++];
+      }
+      i++; // skip closing quote
+    } else if (ch === "\\" && i + 1 < segment.length) {
+      current += segment[++i];
+      i++;
+    } else if (/\s/.test(ch)) {
+      if (current.length > 0) {
+        tokens.push(current);
+        current = "";
+      }
+      i++;
+    } else {
+      current += ch;
+      i++;
+    }
+  }
+  if (current.length > 0) {
+    tokens.push(current);
+  }
+  return tokens;
+}
+
 function isGitWorktreeSegment(segment: string): boolean {
-  const tokens = segment.trim().split(/\s+/).filter(Boolean);
+  const tokens = tokenize(segment);
   let i = 0;
 
   // Skip leading env var assignments (VAR=value).
