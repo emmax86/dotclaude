@@ -1,7 +1,7 @@
 ---
 description: Run a standard command (setup, format, test, test:file, test:match, check) in a repo
 argument-hint: <command> [file] [--match <pattern>] [--repo <name>] [--dry-run]
-allowed-tools: Bash(grove ws exec:*)
+allowed-tools: Bash(grove ws exec *)
 ---
 
 Run the grove exec subcommand with the provided arguments:
