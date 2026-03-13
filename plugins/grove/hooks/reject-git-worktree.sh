@@ -2,9 +2,9 @@
 set -euo pipefail
 
 INPUT=$(cat)
-COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
+COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null) || COMMAND=""
 
-if echo "$COMMAND" | grep -qE '(^|\s)git\s+.*\bworktree\b'; then
+if echo "$COMMAND" | grep -qE '^([A-Za-z_][A-Za-z_0-9]*=[^[:space:]]*[[:space:]]+)*git([[:space:]]+-[^[:space:]]*([[:space:]]+[^-][^[:space:]]*)?)*[[:space:]]+worktree([[:space:]]|$)'; then
   cat <<'EOF'
 {
   "hookSpecificOutput": {

@@ -21,7 +21,6 @@ async function runHook(
 }
 
 describe("reject-git-worktree hook", () => {
-  // Cycle 1: basic allow/deny
   it("rejects git worktree add command", async () => {
     const result = await runHook(HOOK_SCRIPT, {
       tool_input: { command: "git worktree add ../foo feature" },
@@ -36,7 +35,6 @@ describe("reject-git-worktree hook", () => {
     expect(result.exitCode).toBe(0);
   });
 
-  // Cycle 2: output JSON structure
   it("returns deny JSON with permissionDecision and additionalContext", async () => {
     const result = await runHook(HOOK_SCRIPT, {
       tool_input: { command: "git worktree list" },
@@ -48,7 +46,6 @@ describe("reject-git-worktree hook", () => {
     expect(json.hookSpecificOutput.additionalContext).toContain("create-grove-worktree");
   });
 
-  // Cycle 3: edge cases — git flags before worktree
   it("rejects git -C /some/path worktree list", async () => {
     const result = await runHook(HOOK_SCRIPT, {
       tool_input: { command: "git -C /some/path worktree list" },
@@ -70,7 +67,20 @@ describe("reject-git-worktree hook", () => {
     expect(result.exitCode).toBe(2);
   });
 
-  // Cycle 4: no false positives
+  it("allows git commit with worktree in message", async () => {
+    const result = await runHook(HOOK_SCRIPT, {
+      tool_input: { command: 'git commit -m "fix worktree sync bug"' },
+    });
+    expect(result.exitCode).toBe(0);
+  });
+
+  it("allows echo git worktree", async () => {
+    const result = await runHook(HOOK_SCRIPT, {
+      tool_input: { command: "echo git worktree" },
+    });
+    expect(result.exitCode).toBe(0);
+  });
+
   it("allows echo worktree", async () => {
     const result = await runHook(HOOK_SCRIPT, {
       tool_input: { command: "echo worktree" },
