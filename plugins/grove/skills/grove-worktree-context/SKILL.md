@@ -1,7 +1,7 @@
 ---
 name: grove-worktree-context
 description: Orient yourself inside a grove workspace. Discovers the active workspace, registered repos (each with its source path), and all available worktrees with their branches and path template ({workspace}/trees/{repo}/{slug}/). Use at the start of any task when working in a grove-managed workspace, or when you need to know which worktree to work in.
-allowed-tools: Bash(grove ws status:*), Bash(grove ws worktree list:*), Bash(grove ws sync:*)
+allowed-tools: Bash(grove ws status *), Bash(grove ws worktree list *), Bash(grove ws sync *)
 ---
 
 Run the following to get full workspace context:
