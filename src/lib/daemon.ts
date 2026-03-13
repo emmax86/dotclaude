@@ -20,6 +20,11 @@ export interface DaemonInfo {
   stop: () => Promise<void>;
 }
 
+interface Session {
+  transport: WebStandardStreamableHTTPServerTransport;
+  server: ReturnType<typeof createMcpServer>;
+}
+
 export async function startDaemon(options: DaemonOptions): Promise<DaemonInfo> {
   const { workspace, paths, port = 0, gracePeriodMs = 30_000 } = options;
 
@@ -31,8 +36,7 @@ export async function startDaemon(options: DaemonOptions): Promise<DaemonInfo> {
   }
 
   const writeLock = new AsyncMutex();
-  const sessions = new Map<string, WebStandardStreamableHTTPServerTransport>();
-  const servers = new Map<string, ReturnType<typeof createMcpServer>>();
+  const sessions = new Map<string, Session>();
   let graceTimer: ReturnType<typeof setTimeout> | null = null;
 
   function startGraceTimer() {
@@ -63,10 +67,9 @@ export async function startDaemon(options: DaemonOptions): Promise<DaemonInfo> {
   }
 
   function onSessionClosed(sessionId: string) {
+    const session = sessions.get(sessionId);
     sessions.delete(sessionId);
-    const server = servers.get(sessionId);
-    servers.delete(sessionId);
-    server?.close().catch((e) => {
+    session?.server.close().catch((e) => {
       process.stderr.write(`[daemon] failed to close server for session ${sessionId}: ${e}\n`);
     });
     process.stderr.write(`[daemon] session closed: ${sessionId}, active: ${sessions.size}\n`);
@@ -75,14 +78,16 @@ export async function startDaemon(options: DaemonOptions): Promise<DaemonInfo> {
     }
   }
 
-  function broadcastResourceListChanged() {
-    for (const [id, server] of servers) {
-      try {
-        server.sendResourceListChanged();
-      } catch (e) {
-        process.stderr.write(`[daemon] notification failed for session ${id}: ${e}\n`);
-      }
-    }
+  async function broadcastResourceListChanged() {
+    await Promise.allSettled(
+      Array.from(sessions.entries()).map(async ([id, { server }]) => {
+        try {
+          await server.server.sendResourceListChanged();
+        } catch (e) {
+          process.stderr.write(`[daemon] notification failed for session ${id}: ${e}\n`);
+        }
+      }),
+    );
   }
 
   // Bind to loopback only. Discovery file at 0o600 prevents cross-user port discovery.
@@ -106,8 +111,8 @@ export async function startDaemon(options: DaemonOptions): Promise<DaemonInfo> {
         const sessionId = req.headers.get("mcp-session-id");
 
         if (sessionId) {
-          const transport = sessions.get(sessionId);
-          if (!transport) {
+          const session = sessions.get(sessionId);
+          if (!session) {
             return new Response(
               JSON.stringify({
                 jsonrpc: "2.0",
@@ -117,7 +122,7 @@ export async function startDaemon(options: DaemonOptions): Promise<DaemonInfo> {
               { status: 404, headers: { "Content-Type": "application/json" } },
             );
           }
-          return transport.handleRequest(req);
+          return session.transport.handleRequest(req);
         }
 
         // New session — create server+transport pair
@@ -128,8 +133,7 @@ export async function startDaemon(options: DaemonOptions): Promise<DaemonInfo> {
         const transport = new WebStandardStreamableHTTPServerTransport({
           sessionIdGenerator: () => randomUUID(),
           onsessioninitialized: (id) => {
-            sessions.set(id, transport);
-            servers.set(id, server);
+            sessions.set(id, { transport, server });
             cancelGraceTimer();
             process.stderr.write(`[daemon] session opened: ${id}\n`);
           },

@@ -45,27 +45,38 @@ describe("daemon push notifications", () => {
     return client;
   }
 
-  /** Resolves when the next resourceListChanged notification arrives, rejects on timeout. */
-  function waitForNotification(client: Client): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(
-        () => reject(new Error("timed out waiting for resourceListChanged notification")),
-        2000,
-      );
-      client.setNotificationHandler(ResourceListChangedNotificationSchema, async () => {
-        clearTimeout(timer);
-        resolve();
-      });
+  /**
+   * Sets a persistent notification handler on the client and returns a function
+   * that resolves on the next resourceListChanged notification. Safe to call
+   * multiple times concurrently — each call enqueues its own resolver.
+   */
+  function makeNotificationWaiter(client: Client): () => Promise<void> {
+    const pending: Array<() => void> = [];
+    client.setNotificationHandler(ResourceListChangedNotificationSchema, async () => {
+      pending.shift()?.();
     });
+    return () =>
+      new Promise((resolve, reject) => {
+        const timer = setTimeout(
+          () => reject(new Error("timed out waiting for resourceListChanged notification")),
+          2000,
+        );
+        pending.push(() => {
+          clearTimeout(timer);
+          resolve();
+        });
+      });
   }
 
   it("broadcasts resourceListChanged to all sessions after workspace_add_worktree", async () => {
     const client1 = await connectClient();
     const client2 = await connectClient();
+    const wait1 = makeNotificationWaiter(client1);
+    const wait2 = makeNotificationWaiter(client2);
 
-    // Register waits before triggering the mutation
-    const notif1 = waitForNotification(client1);
-    const notif2 = waitForNotification(client2);
+    // Enqueue waits before triggering the mutation
+    const notif1 = wait1();
+    const notif2 = wait2();
 
     const result = await client1.callTool({
       name: "workspace_add_worktree",
@@ -85,24 +96,23 @@ describe("daemon push notifications", () => {
 
   it("broadcasts resourceListChanged after workspace_remove_worktree", async () => {
     const client = await connectClient();
+    const waitForNotification = makeNotificationWaiter(client);
 
     // Add worktree and wait for its notification before proceeding
-    const addNotif = waitForNotification(client);
     await client.callTool({
       name: "workspace_add_worktree",
       arguments: { repo: "myrepo", branch: "to-remove", newBranch: true },
     });
-    await addNotif;
+    await waitForNotification();
 
     // Watch for the remove notification
-    const removeNotif = waitForNotification(client);
     const result = await client.callTool({
       name: "workspace_remove_worktree",
       arguments: { repo: "myrepo", slug: "to-remove" },
     });
     expect(result.isError).toBeFalsy();
 
-    await removeNotif;
+    await waitForNotification();
 
     await client.close();
   });
